@@ -14,6 +14,7 @@ import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
 import { createPreview } from './preview.js';
+import { startUpdates } from './updates.js';
 
 app.setName('Kiri Studio');
 if (process.env.KIRI_STUDIO_USER_DATA) app.setPath('userData', path.resolve(process.env.KIRI_STUDIO_USER_DATA));
@@ -478,5 +479,6 @@ app.whenReady().then(() => {
 	protocol.handle('studio-media', serveMedia);
 	createWindow();
 	if (process.env.KIRI_STUDIO_SCREENSHOT) setTimeout(() => app.exit(1), 120_000);
+	else startUpdates();
 });
 app.on('window-all-closed', () => app.quit());

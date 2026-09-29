@@ -5,6 +5,8 @@
 //   node scripts/smoke.js [outDir]    screenshots go to outDir (default: build/smoke)
 //
 // Linux without a display runs under xvfb-run; CI passes --no-sandbox.
+// SMOKE_APP=<executable> runs a packaged build (dist/*-unpacked) instead of
+// the sources, to check the app still works from its asar archive.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -65,11 +67,12 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	delete env.KIRI_STUDIO_TOKEN;
 
 	// CI Linux: no sandbox (no setuid helper) and no GPU (xvfb has none).
-	const args = [root, ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])];
+	const app = process.env.SMOKE_APP ? path.resolve(process.env.SMOKE_APP) : electron;
+	const args = [...(process.env.SMOKE_APP ? [] : [root]), ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])];
 	const headless = process.platform === 'linux' && !process.env.DISPLAY;
 	const run = headless
-		? spawnSync('xvfb-run', ['-a', electron, ...args], { env, encoding: 'utf8', timeout: 180_000 })
-		: spawnSync(electron, args, { env, encoding: 'utf8', timeout: 180_000 });
+		? spawnSync('xvfb-run', ['-a', app, ...args], { env, encoding: 'utf8', timeout: 180_000 })
+		: spawnSync(app, args, { env, encoding: 'utf8', timeout: 180_000 });
 	const expected = scenario.expect && path.join(userData, scenario.expect.file);
 	const produced = expected && fs.existsSync(expected) ? fs.readFileSync(expected, 'utf8') : '';
 	fs.rmSync(userData, { recursive: true, force: true });

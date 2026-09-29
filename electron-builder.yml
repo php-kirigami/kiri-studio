@@ -1,0 +1,67 @@
+# Installers for Windows, macOS, and Linux: `npm run dist` builds the current
+# platform's into dist/. The release workflow (.github/workflows/release.yml)
+# runs it on each OS and uploads to a draft GitHub Release, which the
+# auto-updater reads once it is published. `publish` below only tells the
+# updater where to look; the workflow does the uploading.
+#
+# Not signed yet: Windows shows a SmartScreen warning on first install, macOS
+# needs right-click → Open (and can't self-update). See docs/PLAN.md, phase 6.
+# Never change: installers and updates identify the app by it.
+appId: io.github.php-kirigami.kiri-studio
+productName: Kiri Studio
+copyright: Copyright © Maxime Larrivée-Roy
+
+directories:
+  output: dist
+
+# The renderer ships as its bundle (build/renderer); its sources and the
+# CodeMirror packages it bundles stay out.
+files:
+  - package.json
+  - src/main/**
+  - src/preload/**
+  - src/shared/**
+  - build/renderer/**
+  - "!**/*.map"
+
+publish:
+  provider: github
+  owner: php-kirigami
+  repo: kiri-studio
+  releaseType: draft
+
+win:
+  target:
+    - target: nsis
+      # x64 only: Windows on Arm runs it emulated. Adding arm64 here makes one
+      # installer holding both, twice the download for everyone.
+      arch: [x64]
+
+# Per-user install, no admin prompt, no wizard pages to click through.
+nsis:
+  oneClick: true
+  perMachine: false
+  artifactName: Kiri-Studio-Setup-${version}-${arch}.${ext}
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    # + a zip target once signed: the macOS updater downloads that.
+  category: public.app-category.productivity
+  # Ad-hoc signature until the Developer ID: Apple Silicon refuses to run
+  # unsigned code at all.
+  identity: "-"
+
+dmg:
+  artifactName: Kiri-Studio-${version}-${arch}.${ext}
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  category: Office
+  maintainer: Maxime Larrivée-Roy <mlarriveeroy@gmail.com>
+  artifactName: Kiri-Studio-${version}-${arch}.${ext}

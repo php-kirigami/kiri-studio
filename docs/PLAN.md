@@ -6,13 +6,13 @@ Read this first when resuming. Phases 0–3 are done; phase 5 (live preview)
 works; phase 4 (publish) is deliberately not started (maintainer's call: do
 everything that doesn't need publishing first, publish when it blocks).
 
-**Done and pushed** (see the phase sections below for detail): sign-in,
+**Done** (see the phase sections below for detail): sign-in,
 site list, tarball sync, discovery grouped by page, Markdown editor, YAML/JSON
 editor with JSON Schema help and smart indentation, autosaved drafts (text,
 binary, deletions), image/document managers (subfolders, downscale, viewer,
 `{% img-asset %}` copy/insert), collections, live preview, multi-editor
-awareness, CI on 3 OSes (unit + `npm run smoke`, 7 scenarios on
-`test/fixtures/site`).
+awareness, unsigned installers + self-updates, CI on 3 OSes (unit + `npm
+run smoke`, 7 scenarios on `test/fixtures/site`).
 
 **Multi-editor awareness** (last session): the renderer calls `site:sync`
 every 3 minutes and on window focus (if the last check is older than 30 s).
@@ -27,13 +27,30 @@ tests and the smoke `outdated` scenario cover the drafts side and the
 notice; **the real GitHub path is untested**: try it once on the sandbox
 (edit a file on github.com while the app is open, refocus the window).
 
+**Phase 6 without certificates** (last session): `electron-builder.yml`
+(NSIS per-user one-click x64, dmg arm64+x64 ad-hoc signed, AppImage + deb),
+`npm run dist`, `src/main/updates.js` (electron-updater: check at start and
+every 4 h, download in background, install on quit; Windows and AppImage
+only), and `.github/workflows/release.yml` (tag `v*` → draft release, the
+smoke tests run on each packaged app first via `SMOKE_APP`). Verified
+locally on Windows: the installer builds and all 7 smoke scenarios pass on
+`dist/win-unpacked` (preview included: the worker runs fine from the asar).
+**Not yet run:** the release workflow itself (macOS ad-hoc signing with
+`identity: "-"` and the Linux `.deb` are unverified), installing the NSIS
+installer, and an actual update from one release to the next.
+
 **Next, in order:**
-1. **Phase 6 without certificates**: electron-builder config, unsigned
-   installers from a release workflow, electron-updater wiring.
-2. Polish: loading indicator on first site list, offline fallback test,
-   clicking through the real sign-in once, the sandbox check above.
+1. First real release (e.g. `v0.1.0`) to exercise the workflow, then a
+   `v0.1.1` to watch an installed app update itself.
+2. Polish: app icon (none yet: Electron's default), "Updated to x.y" note on
+   first launch, loading indicator on first site list, offline fallback
+   test, clicking through the real sign-in once, the sandbox sync check
+   above.
 3. Phase 4 (publish) when needed. After a publish, a sync + `drafts.tidy()`
    clears what was published.
+4. Signing (Apple Developer ID, a Windows signing service) when clients
+   arrive: then add the mac `zip` target and turn macOS updates on in
+   `updates.js`.
 
 **Known gaps / gotchas:**
 - The preview runs the site's own Kirigami (e.g. published 3.0.2), which
@@ -547,6 +564,10 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
   strategy chosen in phase 0.
 
 ### Phase 6 — Distribution
+
+Unsigned part done (see the handoff at the top); signing waits for clients.
+Windows ships x64 only: an arm64 entry makes electron-builder put both
+architectures in one installer, and Windows on Arm runs x64 emulated.
 
 - Clients are on **Windows, macOS, and Linux**, so all three are first-class
   targets from v1: Windows x64 (+ arm64), macOS arm64 + x64, Linux x64.

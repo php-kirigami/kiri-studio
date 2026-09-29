@@ -1,0 +1,95 @@
+# Builds the installers on each OS when a version tag is pushed, checks each
+# packaged app with the smoke tests, and uploads everything to a draft GitHub
+# Release. Publishing that draft (by hand, on GitHub) is what makes installed
+# apps update: electron-updater only sees published releases.
+#
+#   npm version 0.2.0 && git push --follow-tags
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tag matches package.json
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME doesn't match package.json version $version"
+            exit 1
+          fi
+
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 \
+            || gh release create "$GITHUB_REF_NAME" --draft --title "Kiri Studio ${GITHUB_REF_NAME#v}" --generate-notes
+
+  build:
+    needs: draft
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            app: dist/win-unpacked/Kiri Studio.exe
+          - os: macos-latest
+            app: dist/mac-arm64/Kiri Studio.app/Contents/MacOS/Kiri Studio
+          - os: ubuntu-latest
+            app: dist/linux-unpacked/kiri-studio
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      # npm may skip install scripts; make sure the Electron binary is there.
+      - name: Electron binary
+        run: node node_modules/electron/install.js
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Installers
+        run: npm run dist
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false' # not signed yet
+
+      # The same scenarios as the Test workflow, on the packaged app.
+      - name: Smoke tests (packaged)
+        run: npm run smoke -- smoke-${{ matrix.os }}
+        env:
+          SMOKE_APP: ${{ matrix.app }}
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-smoke-${{ matrix.os }}
+          path: smoke-${{ matrix.os }}
+          if-no-files-found: ignore
+
+      # Installers, their blockmaps, and the latest*.yml the updater reads.
+      - name: Upload to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(dist/*.exe dist/*.dmg dist/*.AppImage dist/*.deb dist/*.blockmap dist/latest*.yml)
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber

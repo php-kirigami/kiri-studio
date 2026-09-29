@@ -34,8 +34,10 @@ Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 
 **Early development.** Signing in, finding your sites, keeping them in sync,
 and editing text and data files (checked against their JSON Schema, with
-changes saved automatically as drafts), and managing images and documents
-work; preview and publishing come next. Nothing to install yet. The plan, the design choices, and the
+changes saved automatically as drafts), managing images and documents, the
+live preview, and staying in sync while others edit the same site work;
+publishing comes next. Installers are built but not signed yet (Windows warns
+on first install; macOS needs right-click → Open). The plan, the design choices, and the
 feasibility checks already done (Kirigami running inside Electron, publishing
 through the GitHub API, all three platforms) are in [docs/PLAN.md](docs/PLAN.md).
 
@@ -51,7 +53,25 @@ npm start      # builds the UI, then launches the app
 npm run build  # builds the UI only (build/renderer/)
 npm test       # unit tests (node:test)
 npm run smoke  # end-to-end: the real app on test/fixtures/site (run npm run build first)
+npm run dist   # this platform's installers into dist/ (electron-builder.yml)
 ```
+
+`SMOKE_APP=<executable> npm run smoke` runs the smoke tests on a packaged app
+instead, e.g. `dist/win-unpacked/Kiri Studio.exe` after `npm run dist`.
+
+### Releasing
+
+```bash
+npm version 0.2.0        # bumps package.json and tags v0.2.0
+git push --follow-tags
+```
+
+The Release workflow builds the installers on Windows (x64), macOS (arm64,
+x64), and Linux (x64 AppImage and `.deb`), runs the smoke tests on each
+packaged app, and uploads everything to a **draft** GitHub Release. Installed
+apps update themselves (in the background, applied on quit) only once that
+draft is published: Windows and the AppImage for now; macOS once builds are
+signed.
 
 npm 12 blocks install scripts unless approved; `package.json` approves
 Electron's (it downloads the Electron binary). If `node_modules/electron/dist`

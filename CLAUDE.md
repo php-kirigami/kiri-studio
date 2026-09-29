@@ -32,7 +32,11 @@ local Git.
   `sites.js`, `sync.js` (tarball sync), `drafts.js` (unpublished changes),
   `scope.js` (what's editable, schema lookup; mirrors Kirigami's page and
   PHPDOC rules), `validate.js` (YAML/JSON checks, Ajv), `media.js` (image
-  and document folders over drafts), `collections.js`, `lib/tar.js` (copy of core's reader).
+  and document folders over drafts), `collections.js`, `preview.js` +
+  `preview-worker.js` + `deps.js` (live preview), `updates.js` (silent app
+  updates), `lib/tar.js` (copy of core's reader).
+- `electron-builder.yml` — installers (`npm run dist`); released by
+  `.github/workflows/release.yml` on a `v*` tag, as a draft release.
 - `src/shared/` — used by both sides: `schema-path.js` (walk a JSON Schema).
 - `src/preload/index.cjs` — the only renderer API (`window.studio`).
 - `src/renderer/` — plain DOM UI: `app.js`, `dom.js` (`h()`),
