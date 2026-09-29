@@ -21,6 +21,7 @@ contextBridge.exposeInMainWorld('studio', {
 	},
 	sites: {
 		list: () => ipcRenderer.invoke('sites:list'),
+		add: () => ipcRenderer.invoke('sites:add'),
 	},
 	site: {
 		open: (site) => ipcRenderer.invoke('site:open', site),

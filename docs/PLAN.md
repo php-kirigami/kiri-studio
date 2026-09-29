@@ -198,7 +198,12 @@ form, no server to run). Then:
   only one. A maintainer who wants their own branding can register their own
   App and point Kiri Studio at its client ID (later).
 - The project list = repos the App is installed on, that the client can write
-  to, **and** whose `kirigami.yaml` has a `studio:` block.
+  to, **and** that have a `kirigami.yaml`. The `studio:` block is optional
+  (changed 2026-09-29, maintainer's call: installing the App on a repo is
+  the opt-in; `studio:` only narrows and labels what's editable). "Add a
+  website" opens `https://github.com/apps/kiri-studio/installations/new`;
+  the list refreshes when the window regains focus. "Other websites" is
+  always in the top bar.
 
 Registering the App (org settings → Developer settings → GitHub Apps → New):
 name, homepage, *Enable Device Flow* on, no webhook, the two permissions above,
@@ -476,7 +481,7 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
   narrow preload API (`src/preload/index.cjs`), a strict CSP, no navigation.
 - ✅ Sign in (device flow; code copied and GitHub opened for the client;
   token in `safeStorage`), site list (App installations × push access ×
-  `studio:` block), reopening the last site directly (or the only one),
+  `kirigami.yaml`), reopening the last site directly (or the only one),
   tarball sync on open (skipped when the branch head hasn't moved; falls back
   to the last copy when offline), and the filtered tree: discovered content,
   collections, image and document folders.

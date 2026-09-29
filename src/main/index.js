@@ -6,7 +6,7 @@ import path from 'node:path';
 import { app, BrowserWindow, clipboard, ipcMain, protocol, shell } from 'electron';
 import { createTokenStore, pollForToken, requestDeviceCode } from './auth.js';
 import { createClient } from './github.js';
-import { listSites } from './sites.js';
+import { INSTALL_URL, listSites } from './sites.js';
 import { readSyncState, syncSite } from './sync.js';
 import { buildScope, inScope, isExcluded, mediaRootOf, readStudioConfig, schemaResolver } from './scope.js';
 import { createCollections, creationTarget } from './collections.js';
@@ -60,6 +60,7 @@ ipcMain.handle('app:info', () => ({
 	smokeType: process.env.KIRI_STUDIO_SMOKE_TYPE || null,
 	smokeView: !!process.env.KIRI_STUDIO_SMOKE_VIEW,
 	smokePreview: !!process.env.KIRI_STUDIO_SMOKE_PREVIEW,
+	smokePick: !!process.env.KIRI_STUDIO_SMOKE_PICK, // show the site list even with one site
 	// Smoke tests: local files to add in the opened media manager.
 	smokeFiles: (process.env.KIRI_STUDIO_SMOKE_ADD ?? '').split(path.delimiter).filter(Boolean).map((file) => ({
 		name: path.basename(file),
@@ -157,6 +158,10 @@ function loadScope(treeDir, drafts) {
 		schemaFor: schemaResolver(treeDir, readStudioConfig(treeDir).studio ?? {}, (rel) => drafts.read(rel)),
 	};
 }
+
+// "Add a site": GitHub's page to install the App on more repositories. The
+// renderer refreshes the list when the window comes back to the front.
+ipcMain.handle('sites:add', () => shell.openExternal(INSTALL_URL));
 
 // Opens a site: syncs it, then returns its scope. When GitHub can't be
 // reached, falls back to the last synced copy.

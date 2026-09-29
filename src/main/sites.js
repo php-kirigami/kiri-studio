@@ -1,8 +1,12 @@
 // The sites a signed-in user can edit: repositories the Kiri Studio App is
-// installed on, that the user can push to, and whose kirigami.yaml has a
-// `studio:` block. The token already limits what's visible to the App's
-// installations, so this is the intersection the plan describes.
+// installed on, that the user can push to, and that have a kirigami.yaml.
+// The token already limits what's visible to the App's installations, so
+// installing the App on a repo is what opens it to Kiri Studio. A `studio:`
+// block is optional: it narrows and labels what's editable (scope.js).
 import * as yaml from 'yaml';
+
+// Where a user picks more repositories for the App ("Add a site").
+export const INSTALL_URL = 'https://github.com/apps/kiri-studio/installations/new';
 
 export async function listSites(gh) {
 	const repos = [];
@@ -20,7 +24,7 @@ export async function listSites(gh) {
 			if (error.status === 404 || error.name === 'YAMLParseError') return null;
 			throw error;
 		}
-		if (!config || typeof config !== 'object' || !('studio' in config)) return null;
+		if (!config || typeof config !== 'object') return null;
 		return {
 			fullName: repo.full_name,
 			owner: repo.owner.login,

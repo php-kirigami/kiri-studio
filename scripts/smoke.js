@@ -24,6 +24,7 @@ const scenarios = [
 	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
+	{ name: 'sites', screen: 'sites', locale: 'fr', pick: true },
 	// Last run was an older version: the status bar says the app updated.
 	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr', prefs: { lastVersion: '0.0.1' } },
 	// A change whose file someone else published since: the editor says so.
@@ -64,6 +65,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.add && { KIRI_STUDIO_SMOKE_ADD: scenario.add.join(path.delimiter) }),
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
+		...(scenario.pick && { KIRI_STUDIO_SMOKE_PICK: '1' }),
 	};
 	delete env.ELECTRON_RUN_AS_NODE;
 	delete env.KIRI_STUDIO_TOKEN;

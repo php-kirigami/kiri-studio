@@ -24,7 +24,9 @@ real page update as they type, and click **Publish**. The site's usual GitHub
 Pages workflow does the rest.
 
 The site's maintainer decides what is editable, in the site's own
-`kirigami.yaml` (the `studio:` block). Everything else stays out of sight.
+`kirigami.yaml` (the optional `studio:` block; without it, the content its
+pages load and the site's images are editable). Everything else stays out of
+sight.
 
 Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 
@@ -93,6 +95,7 @@ Environment variables for development and smoke tests:
 | `KIRI_STUDIO_SMOKE_OPEN` | Open this content path, or `media:images` / `media:files`, once the workspace shows (pair with `entry`). |
 | `KIRI_STUDIO_SMOKE_ADD` | Local files (separated by `;` on Windows, `:` elsewhere) to add in the opened media manager. |
 | `KIRI_STUDIO_SMOKE_VIEW` | Open the first image of the opened media manager in the viewer. |
+| `KIRI_STUDIO_SMOKE_PICK` | Show the site list even when there is only one site (pair with `sites`). |
 | `KIRI_STUDIO_SMOKE_TYPE` | Type this text at the end of the opened file and save it as a draft. |
 
 ---

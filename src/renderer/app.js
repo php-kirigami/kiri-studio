@@ -40,7 +40,8 @@ function showSignIn(message) {
 			h('h1', t('signin.title')),
 			message && h('p.notice', message),
 			h('p.lead', t('signin.lead')),
-			h('button.primary.large.github', { onclick: startSignIn }, t('signin.button')))));
+			h('button.primary.large.github', { onclick: startSignIn }, t('signin.button')),
+			version())));
 }
 
 async function startSignIn() {
@@ -88,6 +89,9 @@ async function showSites(user, { pick = false } = {}) {
 		return showError(error, () => showSites(user));
 	}
 	const { sites, lastSite } = list;
+	// Back from GitHub's "install the App" page: the list may have grown.
+	refreshSites = () => showSites(user, { pick });
+	const add = (primary) => h(primary ? 'button.primary' : 'button.secondary', { onclick: () => studio.sites.add() }, t('sites.add'));
 
 	if (!sites.length) {
 		return show('sites', h('main.center',
@@ -95,8 +99,10 @@ async function showSites(user, { pick = false } = {}) {
 				h('h1', t('sites.title')),
 				h('p.lead', t('sites.none')),
 				h('div.actions',
-					h('button.primary', { onclick: () => showSites(user) }, t('sites.refresh')),
-					h('button.link', { onclick: signOut }, t('ws.signOut'))))));
+					add(true),
+					h('button.link', { onclick: () => showSites(user) }, t('sites.refresh')),
+					h('button.link', { onclick: signOut }, t('ws.signOut'))),
+				version())));
 	}
 
 	// Seamless path: reopen the last site, or the only one.
@@ -112,8 +118,19 @@ async function showSites(user, { pick = false } = {}) {
 			h('ul.site-list', sites.map((site) =>
 				h('li', h('button.site', { onclick: () => openSite(user, site, sites) },
 					h('span.site-title', site.title),
-					site.url && h('span.site-url', site.url.replace(/^https?:\/\//, '')))))))));
+					site.url && h('span.site-url', site.url.replace(/^https?:\/\//, '')))))),
+			h('div.actions', add(false), h('button.link', { onclick: signOut }, t('ws.signOut'))),
+			version())));
 }
+
+// The site list refreshes itself when the window comes back to the front
+// (the client may have just given the App access to another repository).
+let refreshSites = null;
+window.addEventListener('focus', () => {
+	if (app.dataset.screen === 'sites') refreshSites?.();
+});
+
+const version = () => h('p.version', `Kiri Studio ${info.version}`);
 
 async function signOut() {
 	await leaveWorkspace();
@@ -137,7 +154,7 @@ async function openSite(user, site, sites) {
 
 	await leaveWorkspace();
 	const layout = h('div.workspace',
-		topbar(user, site, sites),
+		topbar(user, site),
 		sidebar,
 		main,
 		h('footer.statusbar', status, updatedNote(), changesLabel));
@@ -341,18 +358,18 @@ function updatedNote() {
 	return note;
 }
 
-function topbar(user, site, sites) {
+function topbar(user, site) {
 	return h('header.topbar',
 		h('div.brand', 'Kiri Studio'),
 		h('div.site-name',
 			h('span', site.title),
-			sites.length > 1 && h('button.link', { onclick: () => showSites(user, { pick: true }) }, t('ws.switch'))),
+			h('button.link', { onclick: () => showSites(user, { pick: true }) }, t('ws.switch'))),
 		h('div.spacer'),
 		site.url && h('button.secondary', { onclick: () => studio.site.openLive() }, t('ws.viewSite')),
 		h('button.primary', { disabled: true, title: t('ws.publishSoon') }, t('ws.publish')),
 		h('details.account',
 			h('summary', user.avatar ? h('img.avatar', { src: user.avatar, alt: '' }) : h('span.avatar.initial', { 'aria-hidden': 'true' }, user.name[0]), h('span', user.name)),
-			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')))));
+			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')), version())));
 }
 
 async function showEntry(entry) {
@@ -544,7 +561,7 @@ async function start() {
 	setLocale(info.locale);
 	show('loading', h('main.center', h('p.waiting', t('loading'))));
 	const auth = await studio.auth.status();
-	if (auth.signedIn) showSites(auth.user);
+	if (auth.signedIn) showSites(auth.user, { pick: info.smokePick });
 	else if (auth.offline) showError(new Error('offline'), start);
 	else showSignIn();
 }
