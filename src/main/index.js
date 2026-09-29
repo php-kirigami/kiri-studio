@@ -13,6 +13,7 @@ import { createCollections, creationTarget } from './collections.js';
 import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
+import { createPreview } from './preview.js';
 
 app.setName('Kiri Studio');
 if (process.env.KIRI_STUDIO_USER_DATA) app.setPath('userData', path.resolve(process.env.KIRI_STUDIO_USER_DATA));
@@ -114,6 +115,7 @@ ipcMain.handle('auth:reopen', () => {
 ipcMain.handle('auth:signOut', () => {
 	signIn?.abort.abort();
 	tokens.clear();
+	current?.preview.stop();
 	gh = user = current = null;
 	writePrefs({ lastSite: null });
 });
@@ -148,11 +150,31 @@ ipcMain.handle('site:open', async (_event, site) => {
 	for (const collection of scope.collections) collection.creatable = collection.create && !!creationTarget(collection.pattern);
 	const drafts = createDrafts(dir, treeDir);
 	const excluded = (rel) => isExcluded(scope.exclude, rel);
+	current?.preview.stop();
+	const preview = createPreview({
+		siteDir: dir,
+		treeDir,
+		drafts,
+		cacheDir: path.join(userData, 'cache', 'npm'),
+		onStatus: (status) => send('preview:status', status),
+	});
+	// Every change to the drafts reaches the preview copy (batched).
+	let pendingRefresh = null;
+	for (const method of ['save', 'remove', 'discard']) {
+		const original = drafts[method];
+		drafts[method] = function (...args) {
+			const result = original.apply(this, args);
+			clearTimeout(pendingRefresh);
+			pendingRefresh = setTimeout(() => preview.refresh(), 50);
+			return result;
+		};
+	}
 	current = {
 		site,
 		treeDir,
 		scope,
 		drafts,
+		preview,
 		media: createMedia({ treeDir, drafts, isExcluded: excluded }),
 		collections: createCollections({ treeDir, drafts, scope, isExcluded: excluded }),
 		// Schema of any data file, including one the client just created.
@@ -227,6 +249,22 @@ ipcMain.handle('drafts:discard', (_event, rel) => {
 	current.drafts.discard(editable(rel));
 	return current.drafts.list().map((draft) => draft.path);
 });
+
+// --- Preview ---------------------------------------------------------------
+
+// Starts the live preview of the open site; resolves to its URL, or to
+// { error } with a code the renderer explains (noLockfile, offline, build…).
+ipcMain.handle('preview:start', async () => {
+	try {
+		return { url: await current.preview.start() };
+	} catch (error) {
+		console.warn(`Kiri Studio: preview failed: ${error.message}
+${error.log ?? ''}`);
+		return { error: error.code ?? 'failed', message: error.message };
+	}
+});
+
+ipcMain.handle('preview:stop', () => current?.preview.stop());
 
 // --- Collections -----------------------------------------------------------
 
@@ -328,9 +366,19 @@ ipcMain.handle('site:openLive', () => {
 ipcMain.on('ui:settled', async (_event, screen) => {
 	const file = process.env.KIRI_STUDIO_SCREENSHOT;
 	if (!file || screen !== (process.env.KIRI_STUDIO_SMOKE_SCREEN || 'workspace')) return;
-	await new Promise((resolve) => setTimeout(resolve, 400));
-	fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG());
-	app.exit(0);
+	// The first capture can fail while a virtual display's compositor starts
+	// (UnknownVizError under xvfb): retry a few times.
+	for (let attempt = 1; attempt <= 3; attempt++) {
+		await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+		try {
+			fs.writeFileSync(file, (await win.webContents.capturePage()).toPNG());
+			app.exit(0);
+			return;
+		} catch (error) {
+			console.warn(`Kiri Studio: screenshot attempt ${attempt} failed: ${error.message}`);
+		}
+	}
+	app.exit(1);
 });
 
 // --- Window ----------------------------------------------------------------

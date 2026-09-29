@@ -25,6 +25,10 @@ jobs:
       - name: Install
         run: npm ci
 
+      # npm may skip install scripts; make sure the Electron binary is there.
+      - name: Electron binary
+        run: node node_modules/electron/install.js
+
       - name: Unit tests
         run: npm test
 

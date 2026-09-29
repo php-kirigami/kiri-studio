@@ -44,7 +44,8 @@ for (const scenario of scenarios) {
 	delete env.ELECTRON_RUN_AS_NODE;
 	delete env.KIRI_STUDIO_TOKEN;
 
-	const args = [root, ...(process.env.CI ? ['--no-sandbox'] : [])];
+	// CI Linux: no sandbox (no setuid helper) and no GPU (xvfb has none).
+	const args = [root, ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])];
 	const headless = process.platform === 'linux' && !process.env.DISPLAY;
 	const run = headless
 		? spawnSync('xvfb-run', ['-a', electron, ...args], { env, encoding: 'utf8', timeout: 120_000 })
