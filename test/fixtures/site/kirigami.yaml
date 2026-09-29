@@ -4,6 +4,8 @@ kirigami:
   baseurl: https://example.com
   root:    src
 
+prepros: {}
+
 studio:
   files: src/documents
   include:

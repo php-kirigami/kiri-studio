@@ -44,9 +44,20 @@ export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus }) 
 		fs.writeFileSync(target, rel === 'kirigami.yaml' ? withoutStudio(data.toString('utf8')) : data);
 	}
 
+	// Removes the node_modules link itself, never what it points to.
+	function unlink() {
+		let stat;
+		try { stat = fs.lstatSync(link); } catch { return; }
+		if (stat.isSymbolicLink()) {
+			try { fs.unlinkSync(link); } catch { fs.rmdirSync(link); } // a Windows junction needs rmdir
+		} else {
+			fs.rmSync(link, { recursive: true, force: true }); // a stray real folder
+		}
+	}
+
 	// Fresh copy of the synced site, then every draft on top.
 	function rebuild() {
-		if (fs.existsSync(link)) fs.rmSync(link, { force: true, recursive: false }); // the link, never its target
+		unlink();
 		fs.rmSync(dir, { recursive: true, force: true });
 		fs.cpSync(treeDir, dir, {
 			recursive: true,

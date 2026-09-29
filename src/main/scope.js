@@ -78,13 +78,14 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	// Entries keep discovery order: pages as the tree walk meets them (the home
 	// page first), each page's files in annotation order.
 	const content = new Map();
-	const entry = (rel, label, group = null) => {
+	// `page`: the page that loads the file, for the live preview (null if none).
+	const entry = (rel, label, group = null, page = null) => {
 		const kind = kindOf(rel);
-		return { path: rel, label: studio.labels?.[rel] ?? label, group, kind, schema: kind === 'data' ? schemaFor(rel) : null };
+		return { path: rel, label: studio.labels?.[rel] ?? label, group, page, kind, schema: kind === 'data' ? schemaFor(rel) : null };
 	};
-	const add = (rel, label, group) => {
+	const add = (rel, label, group, page = null) => {
 		if (content.has(rel) || excluded(rel) || !isFile(rel)) return;
-		content.set(rel, entry(rel, label, group));
+		content.set(rel, entry(rel, label, group, page));
 	};
 
 	// Page-referenced content, grouped under the page's title.
@@ -96,7 +97,7 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		for (const [tag, value] of Object.entries(info)) {
 			if (!DATA_EXTS.has(path.posix.extname(value).toLowerCase()) || URL_RE.test(value)) continue;
 			const rel = path.posix.normalize(path.posix.join(path.posix.dirname(pageRel), value));
-			add(rel, tag === 'content' ? title : humanize(tag), title);
+			add(rel, tag === 'content' ? title : humanize(tag), title, pageRel);
 		}
 	}
 

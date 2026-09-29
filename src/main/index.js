@@ -56,6 +56,7 @@ ipcMain.handle('app:info', () => ({
 	smokeOpen: process.env.KIRI_STUDIO_SMOKE_OPEN || null,
 	smokeType: process.env.KIRI_STUDIO_SMOKE_TYPE || null,
 	smokeView: !!process.env.KIRI_STUDIO_SMOKE_VIEW,
+	smokePreview: !!process.env.KIRI_STUDIO_SMOKE_PREVIEW,
 	// Smoke tests: local files to add in the opened media manager.
 	smokeFiles: (process.env.KIRI_STUDIO_SMOKE_ADD ?? '').split(path.delimiter).filter(Boolean).map((file) => ({
 		name: path.basename(file),
@@ -106,6 +107,11 @@ ipcMain.handle('auth:start', async () => {
 
 ipcMain.handle('app:copy', (_event, text) => {
 	if (typeof text === 'string') clipboard.writeText(text);
+});
+
+// Opens the live preview (a local address) in the browser; nothing else.
+ipcMain.handle('app:openPreview', (_event, url) => {
+	if (typeof url === 'string' && /^http:\/\/127\.0\.0\.1:\d+\//.test(url)) shell.openExternal(url);
 });
 
 ipcMain.handle('auth:reopen', () => {
@@ -435,6 +441,6 @@ function createWindow() {
 app.whenReady().then(() => {
 	protocol.handle('studio-media', serveMedia);
 	createWindow();
-	if (process.env.KIRI_STUDIO_SCREENSHOT) setTimeout(() => app.exit(1), 60_000);
+	if (process.env.KIRI_STUDIO_SCREENSHOT) setTimeout(() => app.exit(1), 120_000);
 });
 app.on('window-all-closed', () => app.quit());

@@ -1,0 +1,8 @@
+{
+  "name": "fixture-bakery",
+  "private": true,
+  "description": "Kiri Studio test site.",
+  "devDependencies": {
+    "@kirigami/kirigami": "3.0.2"
+  }
+}

@@ -30,6 +30,9 @@ export function createPreviewPane(ws, workspace) {
 	let starting = false;
 
 	const status = h('span.preview-status', { dataset: { state: 'idle' } });
+	// The site keeps its own origin (live reload, theme storage need it). That
+	// can't reach the app: the app is file://, the preview http://127.0.0.1,
+	// so Chromium's "can escape its sandboxing" warning doesn't apply here.
 	const frame = h('iframe.preview-frame', {
 		title: t('preview.title'),
 		sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups',

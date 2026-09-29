@@ -1,5 +1,54 @@
 # Kiri Studio — plan
 
+## Where we are (handoff, 2026-09-29)
+
+Read this first when resuming. Phases 0–3 are done; phase 5 (live preview)
+works; phase 4 (publish) is deliberately not started (maintainer's call: do
+everything that doesn't need publishing first, publish when it blocks).
+
+**Done and pushed** (see the phase sections below for detail): sign-in,
+site list, tarball sync, discovery grouped by page, Markdown editor, YAML/JSON
+editor with JSON Schema help and smart indentation, autosaved drafts (text,
+binary, deletions), image/document managers (subfolders, downscale, viewer,
+`{% img-asset %}` copy/insert), collections, live preview, CI on 3 OSes
+(unit + `npm run smoke`, 6 scenarios on `test/fixtures/site`).
+
+**In progress (last session ended here):**
+- Live preview (`src/main/preview.js`, `preview-worker.js`, `deps.js`,
+  `src/renderer/preview-pane.js`) works locally on the sandbox and the
+  fixture; the smoke `preview` scenario checks the typed text reaches the
+  generated HTML. Just committed with the fixture fixes (data moved under
+  `src/`, `prepros: {}`); check the Test workflow went green on all 3 OSes.
+
+**Next, in order:**
+1. **Multi-editor awareness** (the maintainer's request): several people may
+   edit one site at once, usually different files. Background sync every few
+   minutes and on window focus; when the branch moved: refresh the synced
+   copy, the sidebar, and the preview copy (restart the preview worker),
+   reload the open editor if its file has no draft; if a file with a draft
+   changed remotely (draft `base` ≠ new synced hash), show a plain notice
+   ("Someone else published this page since you started; your version will
+   replace it when you publish"), no question asked. Needs `site:sync` IPC
+   and a preview `resync()`.
+2. **Phase 6 without certificates**: electron-builder config, unsigned
+   installers from a release workflow, electron-updater wiring.
+3. Polish: loading indicator on first site list, offline fallback test,
+   clicking through the real sign-in once.
+4. Phase 4 (publish) when needed.
+
+**Known gaps / gotchas:**
+- The preview runs the site's own Kirigami (e.g. published 3.0.2), which
+  rejects `studio:` (the preview copy strips it) and still re-renders a
+  changed data file's *directory* instead of the pages that load it: fixed in
+  the monorepo (`f486d3e`, unreleased). Until a core release, preview of
+  sites with data under `src/_data/` (humainhumain) won't refresh on data
+  edits.
+- Unreleased core commits the app relies on (monorepo `main`, not pushed):
+  `studio:` block + `schemas` + `imageWidth`, `internal/tar` with file modes,
+  watch data→pages map. humainhumain testing waits for that release.
+- Shell quoting: backslashes and quotes in `node -e`/`sed` one-liners got
+  mangled repeatedly; use the Edit tool for code with regexes or `\n`.
+
 Status: **phase 0 done, phase 1 mostly done, nothing of the app built yet.**
 Expands the "Desktop UI" entry of the monorepo's
 [ROADMAP.md](https://github.com/php-kirigami/kirigami/blob/main/docs/ROADMAP.md).

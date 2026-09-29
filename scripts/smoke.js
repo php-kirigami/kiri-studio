@@ -16,16 +16,21 @@ const outDir = path.resolve(process.argv[2] ?? path.join(root, 'build', 'smoke')
 const fixture = path.join(root, 'test', 'fixtures', 'site');
 fs.mkdirSync(outDir, { recursive: true });
 
+const only = process.env.SMOKE_ONLY;
 const scenarios = [
 	{ name: 'markdown', screen: 'entry', open: 'src/_home.md', type: '\nAdded by the smoke test.\n' },
-	{ name: 'yaml', screen: 'entry', open: '_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
+	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
 	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr' },
+	// Installs the fixture's dependencies from its lockfile, then renders it.
+	// The typed text must reach the page Kirigami generated in the preview copy.
+	{ name: 'preview', screen: 'entry', open: 'src/_home.md', preview: true, type: '\nTyped in Kiri Studio.\n',
+		expect: { file: 'sites/local__site/preview/src/index.html', contains: 'Typed in Kiri Studio.' } },
 ];
 
 let failed = 0;
-for (const scenario of scenarios) {
+for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'kiri-studio-smoke-'));
 	const screenshot = path.join(outDir, `${scenario.name}.png`);
 	fs.rmSync(screenshot, { force: true });
@@ -40,6 +45,7 @@ for (const scenario of scenarios) {
 		...(scenario.type && { KIRI_STUDIO_SMOKE_TYPE: scenario.type }),
 		...(scenario.add && { KIRI_STUDIO_SMOKE_ADD: scenario.add.join(path.delimiter) }),
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
+		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
 	};
 	delete env.ELECTRON_RUN_AS_NODE;
 	delete env.KIRI_STUDIO_TOKEN;
@@ -48,8 +54,10 @@ for (const scenario of scenarios) {
 	const args = [root, ...(process.env.CI && process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu'] : [])];
 	const headless = process.platform === 'linux' && !process.env.DISPLAY;
 	const run = headless
-		? spawnSync('xvfb-run', ['-a', electron, ...args], { env, encoding: 'utf8', timeout: 120_000 })
-		: spawnSync(electron, args, { env, encoding: 'utf8', timeout: 120_000 });
+		? spawnSync('xvfb-run', ['-a', electron, ...args], { env, encoding: 'utf8', timeout: 180_000 })
+		: spawnSync(electron, args, { env, encoding: 'utf8', timeout: 180_000 });
+	const expected = scenario.expect && path.join(userData, scenario.expect.file);
+	const produced = expected && fs.existsSync(expected) ? fs.readFileSync(expected, 'utf8') : '';
 	fs.rmSync(userData, { recursive: true, force: true });
 
 	const output = `${run.stdout ?? ''}${run.stderr ?? ''}`;
@@ -58,6 +66,7 @@ for (const scenario of scenarios) {
 	if (run.status !== 0) problems.push(`exit code ${run.status ?? run.signal}`);
 	if (!fs.existsSync(screenshot)) problems.push('no screenshot');
 	if (errors.length) problems.push(...errors);
+	if (scenario.expect && !produced.includes(scenario.expect.contains)) problems.push(`${scenario.expect.file} lacks "${scenario.expect.contains}"`);
 
 	if (problems.length) {
 		failed++;

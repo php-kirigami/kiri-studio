@@ -97,8 +97,8 @@ studio:
 		label: 'Blog posts',
 		create: true,
 		files: [
-			{ path: 'src/blog/first-post.md', label: 'First post', group: null, kind: 'markdown', schema: null },
-			{ path: 'src/blog/second-post.md', label: 'Second post', group: null, kind: 'markdown', schema: null },
+			{ path: 'src/blog/first-post.md', label: 'First post', group: null, page: null, kind: 'markdown', schema: null },
+			{ path: 'src/blog/second-post.md', label: 'Second post', group: null, page: null, kind: 'markdown', schema: null },
 		],
 	}]);
 	assert.deepEqual(scope.images, {
@@ -170,4 +170,13 @@ test('buildScope: images default to image.source, false hides them, no files by 
 	assert.equal(buildScope(site(t, { 'kirigami.yaml': `${base}studio: {}\n` })).images.path, 'assets/images');
 	assert.equal(buildScope(site(t, { 'kirigami.yaml': `${base}studio:\n  images: false\n` })).images, null);
 	assert.equal(buildScope(site(t, { 'kirigami.yaml': `${base}studio: {}\n` })).files, null);
+});
+
+test('content remembers the page that loads it, for the preview', (t) => {
+	const dir = site(t, {
+		'kirigami.yaml': 'kirigami:\n  root: src\nstudio: {}\n',
+		'src/about/_index.php': '<?php\n/**\n * @content _about.md\n */',
+		'src/about/_about.md': '# About',
+	});
+	assert.equal(buildScope(dir).content[0].page, 'src/about/_index.php');
 });

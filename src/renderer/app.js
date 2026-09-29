@@ -6,6 +6,7 @@ import { actions, createMarkdownEditor, insertBlock } from './markdown-editor.js
 import { createDataEditor } from './data-editor.js';
 import { h } from './dom.js';
 import { ask, imageCode, pickImage, showMedia } from './media-view.js';
+import { createPreviewPane } from './preview-pane.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -66,6 +67,10 @@ studio.auth.onChange((state) => {
 // Leaving the workspace: save what's being typed first.
 async function leaveWorkspace() {
 	await ws?.close();
+	if (ws?.preview) {
+		ws.preview.close();
+		await studio.preview.stop();
+	}
 	ws = null;
 }
 
@@ -127,11 +132,12 @@ async function openSite(user, site, sites) {
 	const changesLabel = h('span.changes');
 
 	await leaveWorkspace();
-	show('workspace-loading', h('div.workspace',
+	const layout = h('div.workspace',
 		topbar(user, site, sites),
 		sidebar,
 		main,
-		h('footer.statusbar', status, changesLabel)));
+		h('footer.statusbar', status, changesLabel));
+	show('workspace-loading', layout);
 
 	let opened;
 	try {
@@ -235,6 +241,12 @@ async function openSite(user, site, sites) {
 
 	main.replaceChildren(h('p.empty', t('ws.empty')));
 	await Promise.all(loading);
+
+	// Live preview, next to the editor; its button sits in the top bar.
+	ws.preview = createPreviewPane(ws, layout);
+	layout.append(ws.preview.pane);
+	layout.querySelector('.topbar .spacer').after(ws.preview.toggle);
+	ws.preview.init();
 	studio.ui.settled('workspace');
 
 	// Smoke tests: open a media manager ("media:images") and add files to it.
@@ -258,6 +270,10 @@ async function openSite(user, site, sites) {
 		const button = sidebar.querySelector(`[data-path="${CSS.escape(info.smokeOpen)}"]`);
 		if (entry && button) {
 			await select(button, () => showEntry(entry));
+			if (info.smokePreview) {
+				await ws.preview.ready();
+				await new Promise((resolve) => setTimeout(resolve, 2000)); // page load
+			}
 			if (info.smokeType) {
 				await ws.smokeType?.(info.smokeType);
 				await new Promise((resolve) => setTimeout(resolve, 1200)); // let the checks run
@@ -284,6 +300,7 @@ function topbar(user, site, sites) {
 
 async function showEntry(entry) {
 	const { main } = ws;
+	ws.preview?.navigate(entry);
 	main.replaceChildren(h('p.empty', t('loading')));
 	let file;
 	try {
