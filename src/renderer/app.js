@@ -293,7 +293,8 @@ async function openSite(user, site, sites) {
 		const button = sidebar.querySelector(`[data-media="${info.smokeOpen.slice(6)}"]`);
 		if (button) {
 			button.click();
-			await new Promise((resolve) => setTimeout(resolve, 500));
+			// The manager is ready once it registered its smoke hooks.
+			while (!ws.smokeAdd) await new Promise((resolve) => setTimeout(resolve, 100));
 			if (info.smokeFiles?.length) {
 				await ws.smokeAdd(info.smokeFiles.map((f) => new File([f.bytes], f.name, { type: f.type })));
 			}
