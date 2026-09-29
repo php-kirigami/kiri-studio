@@ -81,7 +81,7 @@ async function leaveWorkspace() {
 
 async function showSites(user, { pick = false } = {}) {
 	await leaveWorkspace();
-	show('loading', h('main.center', h('p.waiting', t('loading'))));
+	show('loading', h('main.center', h('p.waiting', t('sites.loading'))));
 	let list;
 	try {
 		list = await studio.sites.list();
@@ -380,6 +380,15 @@ function updatedNote() {
 	return note;
 }
 
+// The GitHub picture, or the name's initial (no picture, or offline).
+function avatar(user) {
+	const initial = () => h('span.avatar.initial', { 'aria-hidden': 'true' }, user.name[0]);
+	if (!user.avatar) return initial();
+	const img = h('img.avatar', { src: user.avatar, alt: '' });
+	img.addEventListener('error', () => img.replaceWith(initial()));
+	return img;
+}
+
 function topbar(user, site) {
 	return h('header.topbar',
 		h('div.brand', 'Kiri Studio'),
@@ -390,7 +399,7 @@ function topbar(user, site) {
 		site.url && h('button.secondary', { onclick: () => studio.site.openLive() }, t('ws.viewSite')),
 		h('button.primary', { disabled: true, title: t('ws.publishSoon') }, t('ws.publish')),
 		h('details.account',
-			h('summary', user.avatar ? h('img.avatar', { src: user.avatar, alt: '' }) : h('span.avatar.initial', { 'aria-hidden': 'true' }, user.name[0]), h('span', user.name)),
+			h('summary', avatar(user), h('span', user.name)),
 			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')), version())));
 }
 

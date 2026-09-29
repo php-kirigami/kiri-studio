@@ -45,6 +45,7 @@ async function useToken(token) {
 	const me = await client.json('/user');
 	gh = client;
 	user = { login: me.login, name: me.name || me.login, avatar: me.avatar_url };
+	writePrefs({ user }); // for the next launch without internet
 	return user;
 }
 
@@ -81,6 +82,14 @@ ipcMain.handle('auth:status', async () => {
 		if (error.status === 401) {
 			tokens.clear(); // revoked or uninstalled: sign in again
 			return { signedIn: false };
+		}
+		// No internet: carry on as the last signed-in user, on the sites as
+		// last synced; GitHub is tried again at each sync.
+		const known = readPrefs().user;
+		if (error.status === 0 && known) {
+			gh = createClient(token);
+			user = known;
+			return { signedIn: true, user, offline: true };
 		}
 		return { signedIn: false, offline: error.status === 0 };
 	}
@@ -127,7 +136,7 @@ ipcMain.handle('auth:signOut', () => {
 	tokens.clear();
 	current?.preview.stop();
 	gh = user = current = null;
-	writePrefs({ lastSite: null });
+	writePrefs({ lastSite: null, user: null, sites: null });
 });
 
 // Development: KIRI_STUDIO_LOCAL_SITE=<folder> shows that local site instead
@@ -140,8 +149,16 @@ ipcMain.handle('sites:list', async () => {
 		const title = (() => { try { return readStudioConfig(localSite).kirigami?.project; } catch { return null; } })() || name;
 		return { sites: [{ fullName: `local/${name}`, owner: 'local', name, title, url: null, branch: null, local: true }], lastSite: null };
 	}
-	const sites = await listSites(gh);
-	return { sites, lastSite: readPrefs().lastSite ?? null };
+	const { lastSite = null, sites: known } = readPrefs();
+	try {
+		const sites = await listSites(gh);
+		writePrefs({ sites });
+		return { sites, lastSite };
+	} catch (error) {
+		// No internet: the list as it was last time (their copies are local).
+		if (error.status === 0 && known?.length) return { sites: known, lastSite, offline: true };
+		throw error;
+	}
 });
 
 // What the client may edit in the synced copy, and the helpers built on it.

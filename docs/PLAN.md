@@ -12,7 +12,7 @@ editor with JSON Schema help and smart indentation, autosaved drafts (text,
 binary, deletions), image/document managers (subfolders, downscale, viewer,
 `{% img-asset %}` copy/insert), collections, live preview, multi-editor
 awareness, unsigned installers + self-updates, CI on 3 OSes (unit + `npm
-run smoke`, 7 scenarios on `test/fixtures/site`).
+run smoke`, 8 scenarios on `test/fixtures/site`).
 
 **Multi-editor awareness** (last session): the renderer calls `site:sync`
 every 3 minutes and on window focus (if the last check is older than 30 s).
@@ -35,21 +35,28 @@ only), and `.github/workflows/release.yml` (tag `v*` → draft release, the
 smoke tests run on each packaged app first via `SMOKE_APP`). Verified
 locally on Windows: the installer builds and all 7 smoke scenarios pass on
 `dist/win-unpacked` (preview included: the worker runs fine from the asar).
-**v0.1.0** went through the release workflow on all 3 OSes (macOS ad-hoc
-signing and the `.deb` work; the Windows smoke `viewer` scenario flaked
-once on a fixed delay, fixed in `f2d6d3c`, job re-run). It sits as a
-**draft** release until the maintainer publishes it. Not yet tried: running
-the installers on real machines, and an update from one release to the next.
+**Releases v0.1.0 → v0.1.3** are published. On the maintainer's Windows
+machine: 0.1.0 installed, then updated itself to 0.1.1 and 0.1.3 on quit
+(differential download from the blockmap, about 2 minutes). Lessons: the
+download is invisible, and closing the app mid-download means no update
+(resumed next launch), hence the status line added in 0.1.3; a note that
+reads a preference only works from the version *after* the one that
+started writing it (0.1.0 never wrote `lastVersion`). Also in 0.1.2/0.1.3:
+the app icon (`resources/icon.png`), the version on the sign-in and site
+screens and in the account menu, "Add a website", and any repo with a
+`kirigami.yaml` listed. Release = `npm version x.y.z && git push
+--follow-tags`, then publish the draft on GitHub (the maintainer does that
+step).
 
 **Next, in order:**
-1. Publish the v0.1.0 draft, install it (Windows, and a Linux AppImage if at
-   hand), then release `v0.1.1` and watch the installed app update itself on
-   quit.
-2. Polish: loading indicator on first site list, offline fallback test, clicking through the real sign-in once, the sandbox sync check
-   above.
-3. Phase 4 (publish) when needed. After a publish, a sync + `drafts.tidy()`
+1. Checks that need the maintainer (a real GitHub account): clicking
+   through the real sign-in once, the sandbox sync check above, the real
+   site list (repos without `studio:`). Offline start is done and covered
+   (smoke `offline`, `KIRI_STUDIO_OFFLINE`): the last user and site list are
+   kept in preferences, the last synced copy opens.
+2. Phase 4 (publish) when needed. After a publish, a sync + `drafts.tidy()`
    clears what was published.
-4. Signing (Apple Developer ID, a Windows signing service) when clients
+3. Signing (Apple Developer ID, a Windows signing service) when clients
    arrive: then add the mac `zip` target and turn macOS updates on in
    `updates.js`.
 
@@ -66,7 +73,6 @@ the installers on real machines, and an update from one release to the next.
 - Shell quoting: backslashes and quotes in `node -e`/`sed` one-liners got
   mangled repeatedly; use the Edit tool for code with regexes or `\n`.
 
-Status: **phase 0 done, phase 1 mostly done, nothing of the app built yet.**
 Expands the "Desktop UI" entry of the monorepo's
 [ROADMAP.md](https://github.com/php-kirigami/kirigami/blob/main/docs/ROADMAP.md).
 Started 2026-09-29 from a brainstorm on a generic "Electron CMS for GitHub

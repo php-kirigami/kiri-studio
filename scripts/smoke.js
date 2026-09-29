@@ -31,6 +31,15 @@ const scenarios = [
 	// A change whose file someone else published since: the editor says so.
 	{ name: 'outdated', screen: 'entry', open: 'src/_home.md',
 		drafts: { 'src/_home.md': { base: '0'.repeat(64), text: '# Home\n\nMy version.\n' } } },
+	// No internet, a site synced before: the app opens it as it was, signed in
+	// as the last user, and says it's offline (GitHub calls all fail).
+	{ name: 'offline', screen: 'workspace', github: true, offline: true,
+		prefs: {
+			user: { login: 'maria', name: 'Maria', avatar: 'https://avatars.githubusercontent.com/u/0' }, // 404: shows the initial
+			sites: [{ fullName: 'acme/bakery', owner: 'acme', name: 'bakery', title: 'Fixture Bakery', url: null, branch: 'main' }],
+			lastSite: 'acme/bakery',
+		},
+		synced: 'acme__bakery' },
 	// Installs the fixture's dependencies from its lockfile, then renders it.
 	// The typed text must reach the page Kirigami generated in the preview copy.
 	{ name: 'preview', screen: 'entry', open: 'src/_home.md', preview: true, type: '\nTyped in Kiri Studio.\n',
@@ -42,6 +51,12 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'kiri-studio-smoke-'));
 	const screenshot = path.join(outDir, `${scenario.name}.png`);
 	if (scenario.prefs) fs.writeFileSync(path.join(userData, 'preferences.json'), JSON.stringify(scenario.prefs));
+	// A GitHub site synced on an earlier run: the fixture as its copy.
+	if (scenario.synced) {
+		const siteDir = path.join(userData, 'sites', scenario.synced);
+		fs.cpSync(fixture, path.join(siteDir, 'tree'), { recursive: true, filter: (source) => path.basename(source) !== 'node_modules' });
+		fs.writeFileSync(path.join(siteDir, 'sync.json'), JSON.stringify({ sha: 'smoke', syncedAt: new Date().toISOString() }));
+	}
 	// Unpublished changes to start with, as drafts.js stores them.
 	if (scenario.drafts) {
 		const dir = path.join(userData, 'sites', 'local__site', 'drafts');
@@ -71,6 +86,14 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	};
 	delete env.ELECTRON_RUN_AS_NODE;
 	delete env.KIRI_STUDIO_TOKEN;
+	delete env.KIRI_STUDIO_OFFLINE;
+	// GitHub sites instead of the local one, with a token that is never sent
+	// anywhere when `offline` is set.
+	if (scenario.github) {
+		delete env.KIRI_STUDIO_LOCAL_SITE;
+		env.KIRI_STUDIO_TOKEN = 'smoke-test-token';
+	}
+	if (scenario.offline) env.KIRI_STUDIO_OFFLINE = '1';
 
 	// CI Linux: no sandbox (no setuid helper) and no GPU (xvfb has none).
 	const app = process.env.SMOKE_APP ? path.resolve(process.env.SMOKE_APP) : electron;

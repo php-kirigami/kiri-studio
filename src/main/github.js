@@ -22,6 +22,8 @@ export function createClient(token) {
 
 	async function request(pathOrUrl, { accept } = {}) {
 		const url = pathOrUrl.startsWith('https://') ? pathOrUrl : API + pathOrUrl;
+		// Smoke tests: behave as if there were no internet.
+		if (process.env.KIRI_STUDIO_OFFLINE) throw new GitHubError(`Offline (test) on ${url}`, 0);
 		let res;
 		try {
 			res = await fetch(url, { headers: { ...headers, ...(accept && { Accept: accept }) } });
