@@ -30,6 +30,11 @@ contextBridge.exposeInMainWorld('studio', {
 		schema: (path) => ipcRenderer.invoke('data:schema', path),
 		check: (path, text) => ipcRenderer.invoke('data:check', path, text),
 	},
+	collections: {
+		files: (pattern) => ipcRenderer.invoke('collection:files', pattern),
+		create: (pattern, title) => ipcRenderer.invoke('collection:create', pattern, title),
+		delete: (path) => ipcRenderer.invoke('collection:delete', path),
+	},
 	media: {
 		tree: (root) => ipcRenderer.invoke('media:tree', root),
 		add: (folder, name, bytes) => ipcRenderer.invoke('media:add', folder, name, bytes),

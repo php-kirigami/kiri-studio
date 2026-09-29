@@ -207,14 +207,15 @@ export function humanize(name) {
 // 2 and 3 share VS Code's format: { "<schema path or URL>": "<glob>" | [globs] },
 // schema paths relative to the repo root; a glob without "/" matches the file
 // name anywhere. Returns { path } (repo-relative), { url }, or null.
-function schemaResolver(treeDir, studio) {
+export function schemaResolver(treeDir, studio, read = (rel) => fs.readFileSync(path.join(treeDir, rel), 'utf8')) {
 	const tables = [studio.schemas, vscodeYamlSchemas(treeDir)].filter((t) => t && typeof t === 'object');
 	const target = (value, baseDir) => (URL_RE.test(value)
 		? { url: value }
 		: { path: path.posix.normalize(path.posix.join(baseDir, toPosix(value).replace(/^\//, ''))) });
 
 	return (rel) => {
-		const head = fs.readFileSync(path.join(treeDir, rel), 'utf8').slice(0, 2048);
+		let head = '';
+		try { head = String(read(rel) ?? '').slice(0, 2048); } catch { /* a new file: no modeline yet */ }
 		const modeline = /^#\s*yaml-language-server:\s*\$schema=(\S+)/m.exec(head);
 		if (modeline) return target(modeline[1], path.posix.dirname(rel));
 		for (const table of tables) {

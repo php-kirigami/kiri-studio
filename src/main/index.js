@@ -8,7 +8,8 @@ import { createTokenStore, pollForToken, requestDeviceCode } from './auth.js';
 import { createClient } from './github.js';
 import { listSites } from './sites.js';
 import { readSyncState, syncSite } from './sync.js';
-import { buildScope, inScope, isExcluded, mediaRootOf, readStudioConfig } from './scope.js';
+import { buildScope, inScope, isExcluded, mediaRootOf, readStudioConfig, schemaResolver } from './scope.js';
+import { createCollections, creationTarget } from './collections.js';
 import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
@@ -64,6 +65,8 @@ ipcMain.handle('app:info', () => ({
 ipcMain.handle('auth:status', async () => {
 	if (user) return { signedIn: true, user };
 	const token = tokens.load();
+	// A local site needs no GitHub account (development, CI smoke tests).
+	if (!token && localSite) return { signedIn: true, user: { login: 'local', name: 'Local', avatar: null } };
 	if (!token) return { signedIn: false };
 	try {
 		return { signedIn: true, user: await useToken(token) };
@@ -137,8 +140,19 @@ ipcMain.handle('site:open', async (_event, site) => {
 		status = 'offline';
 	}
 	const scope = buildScope(treeDir);
+	for (const collection of scope.collections) collection.creatable = collection.create && !!creationTarget(collection.pattern);
 	const drafts = createDrafts(dir, treeDir);
-	current = { site, treeDir, scope, drafts, media: createMedia({ treeDir, drafts, isExcluded: (rel) => isExcluded(scope.exclude, rel) }) };
+	const excluded = (rel) => isExcluded(scope.exclude, rel);
+	current = {
+		site,
+		treeDir,
+		scope,
+		drafts,
+		media: createMedia({ treeDir, drafts, isExcluded: excluded }),
+		collections: createCollections({ treeDir, drafts, scope, isExcluded: excluded }),
+		// Schema of any data file, including one the client just created.
+		schemaFor: schemaResolver(treeDir, readStudioConfig(treeDir).studio ?? {}, (rel) => drafts.read(rel)),
+	};
 	schemas.clear();
 	writePrefs({ lastSite: site.fullName });
 	return {
@@ -151,7 +165,8 @@ ipcMain.handle('site:open', async (_event, site) => {
 });
 
 const editable = (rel) => {
-	if (!current || typeof rel !== 'string' || !inScope(current.scope, rel)) throw new Error('Not editable.');
+	if (!current || typeof rel !== 'string') throw new Error('Not editable.');
+	if (!inScope(current.scope, rel) && !current.collections.contains(rel)) throw new Error('Not editable.');
 	return rel;
 };
 
@@ -172,8 +187,7 @@ ipcMain.handle('drafts:save', (_event, rel, text) => {
 // (or the client's draft of it), or over HTTPS for a URL.
 const schemas = new Map();
 async function schemaOf(rel) {
-	const ref = [...current.scope.content, ...current.scope.collections.flatMap((c) => c.files)]
-		.find((entry) => entry.path === rel)?.schema;
+	const ref = current.schemaFor(rel);
 	if (!ref) return null;
 	const id = ref.url ?? ref.path;
 	if (!schemas.has(id)) {
@@ -207,6 +221,20 @@ ipcMain.handle('data:check', async (_event, rel, text) => {
 ipcMain.handle('drafts:discard', (_event, rel) => {
 	current.drafts.discard(editable(rel));
 	return current.drafts.list().map((draft) => draft.path);
+});
+
+// --- Collections -----------------------------------------------------------
+
+ipcMain.handle('collection:files', (_event, pattern) => current.collections.files(pattern));
+
+ipcMain.handle('collection:create', (_event, pattern, title) => ({
+	path: current.collections.create(pattern, String(title)),
+	changes: changes(),
+}));
+
+ipcMain.handle('collection:delete', (_event, rel) => {
+	current.collections.delete(editable(rel));
+	return { changes: changes() };
 });
 
 // --- Images and documents ------------------------------------------------------

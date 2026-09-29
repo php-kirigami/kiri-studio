@@ -5,7 +5,7 @@ import { changeCount, setLocale, t } from './i18n.js';
 import { actions, createMarkdownEditor } from './markdown-editor.js';
 import { createDataEditor } from './data-editor.js';
 import { h } from './dom.js';
-import { showMedia } from './media-view.js';
+import { ask, showMedia } from './media-view.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -174,6 +174,34 @@ async function openSite(user, site, sites) {
 		return button;
 	};
 
+	// A collection lists its files live (new and deleted ones included); when
+	// it allows it, "+" creates a file from a title and opens it.
+	ws.collections = new Map();
+	const loading = [];
+	const collectionSection = (collection) => {
+		const list = h('ul');
+		const render = async (open) => {
+			const files = await studio.collections.files(collection.pattern);
+			list.replaceChildren(...files.map((entry) => h('li', entryButton(entry))));
+			ws.setChanges([...ws.changes]);
+			if (open) list.querySelector(`[data-path="${CSS.escape(open)}"]`)?.click();
+		};
+		const add = collection.creatable && h('button.add', {
+			title: t('collection.new'),
+			'aria-label': t('collection.new'),
+			onclick: async () => {
+				const title = await ask(t('collection.newTitle'));
+				if (!title) return;
+				const created = await studio.collections.create(collection.pattern, title);
+				ws.setChanges(created.changes);
+				render(created.path);
+			},
+		});
+		ws.collections.set(collection.pattern, { ...collection, render });
+		loading.push(render());
+		return h('section.group', h('div.group-head', h('h2', collection.label), add), list);
+	};
+
 	// One entry per media folder; subfolders are browsed in the main area.
 	const mediaSection = (title, root, kind) => {
 		if (!root) return null;
@@ -199,14 +227,13 @@ async function openSite(user, site, sites) {
 		[...groups].map(([name, entries]) => h('section.group',
 			h('h2', name),
 			h('ul', entries.map((entry) => h('li', entryButton(entry)))))),
-		scope.collections.map((collection) => h('section.group',
-			h('h2', collection.label),
-			h('ul', collection.files.map((entry) => h('li', entryButton(entry)))))),
+		scope.collections.map((collection) => collectionSection(collection)),
 		mediaGroup.length && h('section.group', h('h2', t('ws.media')), h('ul', mediaGroup)),
 	].flat().filter(Boolean));
 	ws.setChanges(opened.changes);
 
 	main.replaceChildren(h('p.empty', t('ws.empty')));
+	await Promise.all(loading);
 	studio.ui.settled('workspace');
 
 	// Smoke tests: open a media manager ("media:images") and add files to it.
@@ -246,7 +273,7 @@ function topbar(user, site, sites) {
 		site.url && h('button.secondary', { onclick: () => studio.site.openLive() }, t('ws.viewSite')),
 		h('button.primary', { disabled: true, title: t('ws.publishSoon') }, t('ws.publish')),
 		h('details.account',
-			h('summary', h('img.avatar', { src: user.avatar, alt: '' }), h('span', user.name)),
+			h('summary', user.avatar ? h('img.avatar', { src: user.avatar, alt: '' }) : h('span.avatar.initial', { 'aria-hidden': 'true' }, user.name[0]), h('span', user.name)),
 			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')))));
 }
 
@@ -264,6 +291,21 @@ async function showEntry(entry) {
 	// stops, and immediately when leaving the file or closing the app.
 	const saveState = h('span.save-state');
 	const discard = h('button.link.discard', { hidden: !ws.changes.has(entry.path) }, t('editor.discard'));
+
+	// Files of a collection that allows it can be deleted.
+	const collection = [...ws.collections.values()].find((c) => c.creatable && pathMatches(entry.path, c.pattern));
+	const remove = collection && h('button.link.danger', {
+		onclick: async () => {
+			if (!confirm(t('collection.deleteConfirm', { label: entry.label }))) return;
+			clearTimeout(timer);
+			pending = null;
+			editor.destroy();
+			ws.closeView = null;
+			ws.setChanges((await studio.collections.delete(entry.path)).changes);
+			ws.main.replaceChildren(h('p.empty', t('ws.empty')));
+			collection.render();
+		},
+	}, t('collection.delete'));
 	const setSaveState = (state) => {
 		saveState.dataset.state = state;
 		saveState.textContent = state ? t(`editor.${state}`) : '';
@@ -345,7 +387,7 @@ async function showEntry(entry) {
 
 	const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
 	main.replaceChildren(...[
-		h('div.entry-head', h('h1', entry.label), saveState, discard),
+		h('div.entry-head', h('h1', entry.label), saveState, discard, remove),
 		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),
@@ -361,6 +403,13 @@ async function showEntry(entry) {
 		surface,
 	].filter(Boolean));
 	editor.focus();
+}
+
+// "src/blog/post.md" against "src/blog/*.md" — enough glob for collection
+// patterns in the renderer (the main process decides what is allowed).
+function pathMatches(rel, pattern) {
+	const re = pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*');
+	return new RegExp(`^${re}$`).test(rel);
 }
 
 // Plain-language text for a data-file diagnostic from the main process.

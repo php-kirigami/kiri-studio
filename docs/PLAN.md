@@ -463,7 +463,15 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
   the client's current version of media files only (SVGs sandboxed by
   their own CSP). `exclude` also hides media subfolders (e.g. a plugin's
   cache).
-- Collections: creating and deleting files in `create: true` globs.
+- ✅ Collections (`src/main/collections.js`): files listed live with drafts
+  laid over the synced copy, labeled by their first Markdown heading. With
+  `create: true` and a `<folder>/*.<ext>` pattern, "+" creates a file from a
+  title (safe, unique name; a Markdown file starts with that title as its
+  heading) and opens it; "Delete this page" removes one (a never-published
+  file just goes away). New files get their schema like any data file.
+- ✅ `test/fixtures/site`: a small Kirigami site (Markdown, YAML with a
+  schema, a creatable blog, images, documents) for tests and local runs;
+  `KIRI_STUDIO_LOCAL_SITE` opens it without a GitHub account.
 
 ### Phase 4 — Publish
 

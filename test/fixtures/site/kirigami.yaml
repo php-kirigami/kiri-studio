@@ -1,0 +1,16 @@
+# A small Kirigami site used by Kiri Studio's tests and smoke runs.
+kirigami:
+  project: Fixture Bakery
+  baseurl: https://example.com
+  root:    src
+
+studio:
+  files: src/documents
+  include:
+    - path: src/blog/*.md
+      label: Blog
+      create: true
+  labels:
+    src/_home.md: Welcome text
+  schemas:
+    assets/schemas/team.schema.json: team.yaml

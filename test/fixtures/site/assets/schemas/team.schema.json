@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Team",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string", "minLength": 1, "description": "First name, as shown under the photo." },
+      "role": { "type": "string", "description": "Job title." },
+      "photo": { "type": "string", "pattern": "[.](png|jpg|webp)$", "description": "Photo file in the images folder." }
+    },
+    "required": ["name", "role"],
+    "additionalProperties": false
+  }
+}
