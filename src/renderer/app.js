@@ -1,34 +1,16 @@
 // Kiri Studio renderer: sign-in → site picker → workspace. Plain DOM, no
 // framework. Every string shown to the client goes through t(); data from
 // GitHub or the site is only ever set as text, never as HTML.
-import { changeCount, fileCount, setLocale, t } from './i18n.js';
+import { changeCount, setLocale, t } from './i18n.js';
 import { actions, createMarkdownEditor } from './markdown-editor.js';
 import { createDataEditor } from './data-editor.js';
+import { h } from './dom.js';
+import { showMedia } from './media-view.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
 
 let ws = null; // the open workspace, see openSite()
-
-// h('button.primary', { onclick }, 'Label') → element. The props object is
-// optional; children may be strings, elements, arrays, or null/false.
-function h(spec, props, ...children) {
-	if (props == null || props === false || typeof props !== 'object' || props instanceof Node || Array.isArray(props)) {
-		children.unshift(props);
-		props = {};
-	}
-	const [tag, ...classes] = spec.split('.');
-	const el = document.createElement(tag || 'div');
-	if (classes.length) el.className = classes.join(' ');
-	for (const [key, value] of Object.entries(props)) {
-		if (value == null || value === false) continue;
-		if (key.startsWith('on')) el.addEventListener(key.slice(2), value);
-		else if (key === 'dataset') Object.assign(el.dataset, value);
-		else el.setAttribute(key, value === true ? '' : value);
-	}
-	el.append(...children.flat(Infinity).filter((child) => child != null && child !== false));
-	return el;
-}
 
 function show(screen, ...content) {
 	app.dataset.screen = screen;
@@ -192,20 +174,17 @@ async function openSite(user, site, sites) {
 		return button;
 	};
 
-	const folderList = (node) => h('ul.folders', node.folders.map((folder) => {
-		const button = h('button.entry.folder', {},
-			h('span', folder.name),
-			h('span.count', String(folder.files)));
-		button.addEventListener('click', () => select(button, () => showFolder(main, folder)));
-		return h('li', button, folder.folders.length ? folderList(folder) : null);
-	}));
-
-	const mediaSection = (title, node) => {
-		if (!node) return null;
-		const button = h('button.entry.folder', {}, h('span', t('ws.mainFolder')), h('span.count', String(node.files)));
-		button.addEventListener('click', () => select(button, () => showFolder(main, node, title)));
-		return h('section.group', h('h2', title), button, folderList(node));
+	// One entry per media folder; subfolders are browsed in the main area.
+	const mediaSection = (title, root, kind) => {
+		if (!root) return null;
+		const button = h('button.entry.folder', { dataset: { media: kind } }, h('span', title));
+		button.addEventListener('click', () => select(button, () => showMedia(ws, { root, title, kind })));
+		return h('li', button);
 	};
+	const mediaGroup = [
+		mediaSection(t('ws.images'), opened.scope.images?.path, 'images'),
+		mediaSection(t('ws.files'), opened.scope.files?.path, 'files'),
+	].filter(Boolean);
 
 	const { scope } = opened;
 	// Content grouped by the page it belongs to, in discovery order.
@@ -223,15 +202,26 @@ async function openSite(user, site, sites) {
 		scope.collections.map((collection) => h('section.group',
 			h('h2', collection.label),
 			h('ul', collection.files.map((entry) => h('li', entryButton(entry)))))),
-		mediaSection(t('ws.images'), scope.images),
-		mediaSection(t('ws.files'), scope.files),
+		mediaGroup.length && h('section.group', h('h2', t('ws.media')), h('ul', mediaGroup)),
 	].flat().filter(Boolean));
 	ws.setChanges(opened.changes);
 
 	main.replaceChildren(h('p.empty', t('ws.empty')));
 	studio.ui.settled('workspace');
 
-	if (info.smokeOpen) {
+	// Smoke tests: open a media manager ("media:images") and add files to it.
+	if (info.smokeOpen?.startsWith('media:')) {
+		const button = sidebar.querySelector(`[data-media="${info.smokeOpen.slice(6)}"]`);
+		if (button) {
+			button.click();
+			await new Promise((resolve) => setTimeout(resolve, 500));
+			if (info.smokeFiles?.length) {
+				await ws.smokeAdd(info.smokeFiles.map((f) => new File([f.bytes], f.name, { type: f.type })));
+			}
+			await new Promise((resolve) => setTimeout(resolve, 800)); // thumbnails
+			studio.ui.settled('entry');
+		}
+	} else if (info.smokeOpen) {
 		const entry = [...scope.content, ...scope.collections.flatMap((c) => c.files)].find((e) => e.path === info.smokeOpen);
 		const button = sidebar.querySelector(`[data-path="${CSS.escape(info.smokeOpen)}"]`);
 		if (entry && button) {
@@ -384,12 +374,6 @@ studio.ui.onBeforeClose(async () => {
 	await ws?.close();
 	studio.ui.readyToClose();
 });
-
-function showFolder(main, folder, title = folder.name) {
-	main.replaceChildren(
-		h('h1', title),
-		h('p.lead', folder.files ? fileCount(folder.files) : t('ws.folderEmpty')));
-}
 
 // --- Start -----------------------------------------------------------------
 

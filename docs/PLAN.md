@@ -448,8 +448,21 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
   `exclude: [src/_data/*/schema.json]` (JSON-LD files, not content).
 - The CSP allows inline styles and `data:` images: CodeMirror sets style
   attributes and draws lint markers as data-URI SVGs. Scripts stay `'self'`.
-- Image and file managers (drop, downscale, subfolders, rename, delete with
-  reference check).
+- ✅ Image and document managers (`src/main/media.js`,
+  `src/renderer/media-view.js`): one sidebar entry each, folders browsed in
+  the main area (breadcrumb, folder tiles, thumbnails). Add by drag and drop
+  or a button; photos over 2560 px on their long side are downscaled in the
+  renderer (canvas, EXIF orientation applied, same format), smaller files
+  keep their bytes; 25 MB cap per file. Names are made safe
+  (`Été 2026 (1).JPG` → `ete-2026-1.jpg`) and never overwrite
+  (`-2`, `-3`…). Create, rename, and delete files and folders; renaming or
+  deleting warns when a content file mentions the name. Everything is a
+  draft: drafts now hold binary files and deletions, a rename is a delete
+  plus an add, and a new folder holds a hidden `.gitkeep` (Git keeps no
+  empty folders). Thumbnails come from a `studio-media:` protocol serving
+  the client's current version of media files only (SVGs sandboxed by
+  their own CSP). `exclude` also hides media subfolders (e.g. a plugin's
+  cache).
 - Collections: creating and deleting files in `create: true` globs.
 
 ### Phase 4 — Publish

@@ -34,8 +34,8 @@ Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 
 **Early development.** Signing in, finding your sites, keeping them in sync,
 and editing text and data files (checked against their JSON Schema, with
-changes saved automatically as drafts) work; images, preview, and publishing
-come next. Nothing to install yet. The plan, the design choices, and the
+changes saved automatically as drafts), and managing images and documents
+work; preview and publishing come next. Nothing to install yet. The plan, the design choices, and the
 feasibility checks already done (Kirigami running inside Electron, publishing
 through the GitHub API, all three platforms) are in [docs/PLAN.md](docs/PLAN.md).
 
@@ -69,7 +69,8 @@ Environment variables for development and smoke tests:
 | `KIRI_STUDIO_LOCALE` | Force the UI language (`fr`, `en`). |
 | `KIRI_STUDIO_SCREENSHOT` | Save a PNG of the window once `KIRI_STUDIO_SMOKE_SCREEN` shows, then quit. |
 | `KIRI_STUDIO_SMOKE_SCREEN` | Screen to capture: `signin`, `sites`, `workspace` (default), or `entry`. |
-| `KIRI_STUDIO_SMOKE_OPEN` | Open this content path once the workspace shows (pair with `entry`). |
+| `KIRI_STUDIO_SMOKE_OPEN` | Open this content path, or `media:images` / `media:files`, once the workspace shows (pair with `entry`). |
+| `KIRI_STUDIO_SMOKE_ADD` | Local files (separated by `;` on Windows, `:` elsewhere) to add in the opened media manager. |
 | `KIRI_STUDIO_SMOKE_TYPE` | Type this text at the end of the opened file and save it as a draft. |
 
 ---

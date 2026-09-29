@@ -3,12 +3,13 @@
 // narrow API in src/preload/index.cjs.
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, clipboard, ipcMain, protocol, shell } from 'electron';
 import { createTokenStore, pollForToken, requestDeviceCode } from './auth.js';
 import { createClient } from './github.js';
 import { listSites } from './sites.js';
 import { readSyncState, syncSite } from './sync.js';
-import { buildScope, inScope, readStudioConfig } from './scope.js';
+import { buildScope, inScope, isExcluded, mediaRootOf, readStudioConfig } from './scope.js';
+import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
 
@@ -52,6 +53,12 @@ ipcMain.handle('app:info', () => ({
 	locale: process.env.KIRI_STUDIO_LOCALE || app.getLocale(),
 	smokeOpen: process.env.KIRI_STUDIO_SMOKE_OPEN || null,
 	smokeType: process.env.KIRI_STUDIO_SMOKE_TYPE || null,
+	// Smoke tests: local files to add in the opened media manager.
+	smokeFiles: (process.env.KIRI_STUDIO_SMOKE_ADD ?? '').split(path.delimiter).filter(Boolean).map((file) => ({
+		name: path.basename(file),
+		type: MIME[path.extname(file).toLowerCase()] ?? '',
+		bytes: fs.readFileSync(file),
+	})),
 }));
 
 ipcMain.handle('auth:status', async () => {
@@ -129,7 +136,9 @@ ipcMain.handle('site:open', async (_event, site) => {
 		if (!fs.existsSync(treeDir)) throw error;
 		status = 'offline';
 	}
-	current = { site, treeDir, scope: buildScope(treeDir), drafts: createDrafts(dir, treeDir) };
+	const scope = buildScope(treeDir);
+	const drafts = createDrafts(dir, treeDir);
+	current = { site, treeDir, scope, drafts, media: createMedia({ treeDir, drafts, isExcluded: (rel) => isExcluded(scope.exclude, rel) }) };
 	schemas.clear();
 	writePrefs({ lastSite: site.fullName });
 	return {
@@ -200,6 +209,84 @@ ipcMain.handle('drafts:discard', (_event, rel) => {
 	return current.drafts.list().map((draft) => draft.path);
 });
 
+// --- Images and documents ------------------------------------------------------
+
+// Checks that `rel` is inside a media folder; returns that folder.
+const mediaRoot = (rel) => {
+	const root = current && mediaRootOf(current.scope, rel);
+	if (!root) throw new Error('Not editable.');
+	return root;
+};
+const changes = () => current.drafts.list().map((draft) => draft.path);
+
+ipcMain.handle('media:tree', (_event, root) => {
+	if (mediaRoot(root) !== root) throw new Error('Not a media folder.');
+	return current.media.tree(root);
+});
+
+ipcMain.handle('media:add', (_event, folder, name, bytes) => {
+	if (!(bytes instanceof Uint8Array) || typeof name !== 'string') throw new Error('File expected.');
+	const root = mediaRoot(folder);
+	try {
+		return { path: current.media.add(folder, name, Buffer.from(bytes), root), changes: changes() };
+	} catch (error) {
+		return { error: error.code ?? 'failed', changes: changes() };
+	}
+});
+
+ipcMain.handle('media:mkdir', (_event, parent, name) => ({
+	path: current.media.mkdir(parent, String(name), mediaRoot(parent)),
+	changes: changes(),
+}));
+
+ipcMain.handle('media:rename', (_event, rel, name) => ({
+	path: current.media.rename(rel, String(name), mediaRoot(rel)),
+	changes: changes(),
+}));
+
+ipcMain.handle('media:delete', (_event, rel) => {
+	current.media.delete(rel, mediaRoot(rel));
+	return { changes: changes() };
+});
+
+// Which content mentions a file (or any file in a folder) by name, so the
+// client is warned before renaming or deleting something a page uses.
+ipcMain.handle('media:usage', (_event, rel) => {
+	const root = mediaRoot(rel);
+	const names = current.media.files(root)
+		.filter((file) => file === rel || file.startsWith(`${rel}/`))
+		.map((file) => path.posix.basename(file))
+		.filter((name) => !name.startsWith('.'));
+	const entries = [...current.scope.content, ...current.scope.collections.flatMap((c) => c.files)];
+	return entries
+		.filter((entry) => {
+			const text = current.drafts.read(entry.path)?.toString('utf8') ?? '';
+			return names.some((name) => text.includes(name));
+		})
+		.map((entry) => (entry.group && entry.group !== entry.label ? `${entry.group} › ${entry.label}` : entry.label));
+});
+
+// Thumbnails and previews: studio-media://site/<path>, the client's current
+// version of a media file. Only media folders are served.
+const MIME = {
+	'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
+	'.gif': 'image/gif', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.pdf': 'application/pdf',
+};
+protocol.registerSchemesAsPrivileged([{ scheme: 'studio-media', privileges: { standard: true, secure: true } }]);
+function serveMedia(request) {
+	const rel = decodeURIComponent(new URL(request.url).pathname.slice(1));
+	if (!current || !mediaRootOf(current.scope, rel)) return new Response(null, { status: 404 });
+	const data = current.drafts.read(rel);
+	if (!data) return new Response(null, { status: 404 });
+	return new Response(data, {
+		headers: {
+			'Content-Type': MIME[path.posix.extname(rel).toLowerCase()] ?? 'application/octet-stream',
+			// An SVG must not run scripts inside the app.
+			'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+		},
+	});
+}
+
 ipcMain.handle('site:openLive', () => {
 	if (current?.site.url) shell.openExternal(current.site.url);
 });
@@ -265,6 +352,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+	protocol.handle('studio-media', serveMedia);
 	createWindow();
 	if (process.env.KIRI_STUDIO_SCREENSHOT) setTimeout(() => app.exit(1), 60_000);
 });

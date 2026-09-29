@@ -31,11 +31,12 @@ local Git.
   `auth.js` (device flow, token store), `github.js` (REST client),
   `sites.js`, `sync.js` (tarball sync), `drafts.js` (unpublished changes),
   `scope.js` (what's editable, schema lookup; mirrors Kirigami's page and
-  PHPDOC rules), `validate.js` (YAML/JSON checks, Ajv), `lib/tar.js` (copy
-  of core's reader).
+  PHPDOC rules), `validate.js` (YAML/JSON checks, Ajv), `media.js` (image
+  and document folders over drafts), `lib/tar.js` (copy of core's reader).
 - `src/shared/` — used by both sides: `schema-path.js` (walk a JSON Schema).
 - `src/preload/index.cjs` — the only renderer API (`window.studio`).
-- `src/renderer/` — plain DOM UI: `app.js`, `markdown-editor.js` and
+- `src/renderer/` — plain DOM UI: `app.js`, `dom.js` (`h()`),
+  `media-view.js`, `markdown-editor.js` and
   `data-editor.js` + `yaml-indent.js` (CodeMirror 6), `i18n.js` (FR/EN), `styles.css` (rem/em only). Bundled by
   `scripts/build.js` (esbuild) into `build/renderer/`, which the window loads.
 - `test/` — `node --test`. UI checks: smoke screenshots (see README).

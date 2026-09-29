@@ -30,6 +30,14 @@ contextBridge.exposeInMainWorld('studio', {
 		schema: (path) => ipcRenderer.invoke('data:schema', path),
 		check: (path, text) => ipcRenderer.invoke('data:check', path, text),
 	},
+	media: {
+		tree: (root) => ipcRenderer.invoke('media:tree', root),
+		add: (folder, name, bytes) => ipcRenderer.invoke('media:add', folder, name, bytes),
+		mkdir: (parent, name) => ipcRenderer.invoke('media:mkdir', parent, name),
+		rename: (path, name) => ipcRenderer.invoke('media:rename', path, name),
+		delete: (path) => ipcRenderer.invoke('media:delete', path),
+		usage: (path) => ipcRenderer.invoke('media:usage', path),
+	},
 	drafts: {
 		save: (path, text) => ipcRenderer.invoke('drafts:save', path, text),
 		discard: (path) => ipcRenderer.invoke('drafts:discard', path),

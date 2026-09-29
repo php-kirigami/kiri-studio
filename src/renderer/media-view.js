@@ -1,0 +1,174 @@
+// Image and document manager: browse folders, drop or pick files to add,
+// create, rename, and delete files and folders. Every change becomes a draft
+// in the main process; nothing here touches the disk.
+import { h } from './dom.js';
+import { t } from './i18n.js';
+
+const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
+const RESIZABLE = /^image\/(jpeg|png|webp)$/;
+const MAX_SIDE = 2560; // px: plenty for any web layout; Kirigami makes the smaller sizes
+const MAX_SIZE = 25 * 1024 * 1024;
+
+const mediaUrl = (file) => `studio-media://site/${encodeURIComponent(file.path)}?v=${file.size}-${file.status ?? ''}`;
+
+// Photos straight from a phone or camera are shrunk before they enter the
+// site; anything already small keeps its original bytes.
+async function prepare(file) {
+	if (RESIZABLE.test(file.type)) {
+		const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+		const scale = MAX_SIDE / Math.max(bitmap.width, bitmap.height);
+		if (scale < 1) {
+			const canvas = new OffscreenCanvas(Math.round(bitmap.width * scale), Math.round(bitmap.height * scale));
+			canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+			const blob = await canvas.convertToBlob({ type: file.type, quality: 0.88 });
+			bitmap.close();
+			return new Uint8Array(await blob.arrayBuffer());
+		}
+		bitmap.close();
+	}
+	return new Uint8Array(await file.arrayBuffer());
+}
+
+// A small text-input dialog (Electron has no window.prompt).
+export function ask(title, value = '') {
+	return new Promise((resolve) => {
+		const input = h('input.field', { type: 'text', value, 'aria-label': title });
+		const dialog = h('dialog.ask',
+			h('form', { method: 'dialog' },
+				h('h2', title),
+				input,
+				h('div.actions',
+					h('button.primary', { value: 'ok' }, t('common.ok')),
+					h('button.secondary', { value: 'cancel', formnovalidate: true }, t('common.cancel')))));
+		dialog.addEventListener('close', () => {
+			const answer = dialog.returnValue === 'ok' ? input.value.trim() : '';
+			dialog.remove();
+			resolve(answer || null);
+		});
+		document.body.append(dialog);
+		dialog.showModal();
+		input.select();
+	});
+}
+
+// showMedia(ws, { root, title, kind }, folderPath) renders the manager in ws.main.
+export async function showMedia(ws, media, folderPath = media.root) {
+	const { main } = ws;
+	const tree = await studio.media.tree(media.root);
+	const find = (node, rel) => (node.path === rel ? node : node.folders.map((f) => find(f, rel)).find(Boolean));
+	const folder = find(tree, folderPath) ?? tree;
+	const open = (rel) => showMedia(ws, media, rel);
+	const refresh = () => open(folder.path);
+	const status = h('p.media-status', { role: 'status' });
+
+	async function addFiles(list) {
+		const files = [...list];
+		if (!files.length) return;
+		const problems = [];
+		for (const [i, file] of files.entries()) {
+			status.textContent = t('media.adding', { current: i + 1, total: files.length });
+			if (file.size > MAX_SIZE) {
+				problems.push(t('media.tooLarge', { name: file.name }));
+				continue;
+			}
+			const result = await studio.media.add(folder.path, file.name, await prepare(file));
+			ws.setChanges(result.changes);
+			if (result.error) problems.push(t(result.error === 'tooLarge' ? 'media.tooLarge' : 'media.addFailed', { name: file.name }));
+		}
+		await refresh();
+		if (problems.length) main.querySelector('.media-status').textContent = problems.join(' ');
+	}
+
+	async function rename(item, isFolder) {
+		const name = await ask(isFolder ? t('media.renameFolder') : t('media.renameFile'), item.name);
+		if (!name) return;
+		if (!(await confirmUsage(item.path, 'media.renameUsed'))) return;
+		ws.setChanges((await studio.media.rename(item.path, name)).changes);
+		refresh();
+	}
+
+	async function remove(item, isFolder) {
+		const used = await studio.media.usage(item.path);
+		const question = isFolder ? t('media.deleteFolderConfirm', { name: item.name }) : t('media.deleteConfirm', { name: item.name });
+		if (!confirm(used.length ? `${question}\n\n${t('media.usedBy', { pages: used.join(', ') })}` : question)) return;
+		ws.setChanges((await studio.media.delete(item.path)).changes);
+		refresh();
+	}
+
+	async function confirmUsage(rel, key) {
+		const used = await studio.media.usage(rel);
+		return !used.length || confirm(t(key, { pages: used.join(', ') }));
+	}
+
+	async function newFolder() {
+		const name = await ask(t('media.newFolder'));
+		if (!name) return;
+		const result = await studio.media.mkdir(folder.path, name);
+		ws.setChanges(result.changes);
+		refresh();
+	}
+
+	const menu = (item, isFolder) => h('details.tile-menu',
+		h('summary', { 'aria-label': t('media.actions'), title: t('media.actions') }),
+		h('div.menu',
+			h('button.link', { onclick: () => rename(item, isFolder) }, t('media.rename')),
+			h('button.link.danger', { onclick: () => remove(item, isFolder) }, t('media.delete'))));
+
+	const folderTile = (sub) => h('li.tile.folder-tile',
+		h('button.tile-open', { onclick: () => open(sub.path) },
+			h('span.tile-name', sub.name),
+			h('span.tile-meta', t('media.items', { count: sub.files.length + sub.folders.length }))),
+		menu(sub, true));
+
+	const fileTile = (file) => h('li.tile', { dataset: { status: file.status ?? '' } },
+		IMAGE.test(file.name)
+			? h('img.thumb', { src: mediaUrl(file), alt: '', loading: 'lazy', draggable: 'false' })
+			: h('span.doc', { dataset: { ext: file.name.split('.').pop().toUpperCase() } }),
+		h('span.tile-name', { title: file.name }, file.name),
+		file.status && h('span.badge', t(`media.status.${file.status}`)),
+		menu(file, false));
+
+	// Breadcrumb: Images › team › 2026
+	const crumbs = [];
+	for (let node = folder; node; node = node.path === media.root ? null : find(tree, node.path.slice(0, node.path.lastIndexOf('/')))) {
+		crumbs.unshift(node);
+	}
+	const picker = h('input', { type: 'file', multiple: true, hidden: true, accept: media.kind === 'images' ? 'image/*' : null });
+	picker.addEventListener('change', () => addFiles(picker.files));
+
+	const drop = h('div.media',
+		h('div.media-head',
+			h('nav.crumbs', { 'aria-label': media.title }, crumbs.map((node, i) => [
+				i > 0 && h('span.crumb-sep', '›'),
+				i === crumbs.length - 1
+					? h('h1.crumb', i === 0 ? media.title : node.name)
+					: h('button.link.crumb', { onclick: () => open(node.path) }, i === 0 ? media.title : node.name),
+			])),
+			h('div.spacer'),
+			h('button.secondary', { onclick: newFolder }, t('media.newFolder')),
+			h('button.primary', { onclick: () => picker.click() }, media.kind === 'images' ? t('media.addImages') : t('media.addFiles')),
+			picker),
+		h('p.help', h('span', media.kind === 'images' ? t('media.dropImages') : t('media.dropFiles'))),
+		status,
+		folder.folders.length + folder.files.length
+			? h('ul.tiles', folder.folders.map(folderTile), folder.files.map(fileTile))
+			: h('p.empty', t('ws.folderEmpty')));
+
+	// Drag files from the desktop anywhere on the manager.
+	drop.addEventListener('dragover', (event) => {
+		if (![...event.dataTransfer.types].includes('Files')) return;
+		event.preventDefault();
+		drop.classList.add('dropping');
+	});
+	drop.addEventListener('dragleave', (event) => {
+		if (!drop.contains(event.relatedTarget)) drop.classList.remove('dropping');
+	});
+	drop.addEventListener('drop', (event) => {
+		event.preventDefault();
+		drop.classList.remove('dropping');
+		addFiles(event.dataTransfer.files);
+	});
+
+	main.replaceChildren(drop);
+	ws.smokeAdd = addFiles;
+}

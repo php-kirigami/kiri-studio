@@ -67,7 +67,8 @@ export function readStudioConfig(treeDir) {
 export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	const studio = config.studio ?? {};
 	const root = toPosix(config.kirigami?.root ?? 'src');
-	const excluded = (rel) => (studio.exclude ?? []).some((pattern) => rel === pattern || path.matchesGlob(rel, pattern));
+	const exclude = (studio.exclude ?? []).map(toPosix);
+	const excluded = (rel) => isExcluded(exclude, rel);
 	const isFile = (rel) => {
 		const abs = path.resolve(treeDir, rel);
 		return inside(treeDir, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile();
@@ -121,7 +122,21 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		collections,
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),
 		files: studio.files ? folderTree(treeDir, toPosix(studio.files), excluded) : null,
+		exclude,
 	};
+}
+
+// A path matches an `exclude` pattern, or lies inside a folder that does.
+export function isExcluded(patterns, rel) {
+	return patterns.some((pattern) => rel === pattern || rel.startsWith(`${pattern}/`) || path.posix.matchesGlob(rel, pattern));
+}
+
+// The media folder (images or files) `rel` belongs to, or null. Anything below
+// a media folder counts, including what the client added since the sync.
+export function mediaRootOf(scope, rel) {
+	if (typeof rel !== 'string' || rel.split('/').some((part) => part === '..' || part === '')) return null;
+	if (isExcluded(scope.exclude, rel)) return null;
+	return [scope.images, scope.files].find((media) => media && (rel === media.path || rel.startsWith(`${media.path}/`)))?.path ?? null;
 }
 
 // Whether `rel` is something the client may open: guards every file read the
@@ -129,15 +144,7 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 export function inScope(scope, rel) {
 	if (scope.content.some((entry) => entry.path === rel)) return true;
 	if (scope.collections.some((c) => c.files.some((f) => f.path === rel))) return true;
-	return [scope.images, scope.files].some((media) => media && inTree(media, rel));
-}
-
-function inTree(node, rel) {
-	if (!rel.startsWith(`${node.path}/`)) return false;
-	const rest = rel.slice(node.path.length + 1);
-	if (!rest.includes('/')) return true; // a file directly in this folder
-	const child = node.folders.find((folder) => rel.startsWith(`${folder.path}/`));
-	return !!child && inTree(child, rel); // excluded folders are absent from the tree
+	return mediaRootOf(scope, rel) !== null;
 }
 
 // { path, name, files, folders: [...] } — `files` counts direct children.
