@@ -82,6 +82,18 @@ function link(view) {
 	view.focus();
 }
 
+// Inserts `text` as a paragraph of its own at the cursor (an image code, …).
+export function insertBlock(view, text) {
+	const { state } = view;
+	const at = state.selection.main.to;
+	const line = state.doc.lineAt(at);
+	const before = line.text.slice(0, at - line.from).trim() ? '\n\n' : '';
+	const after = line.text.slice(at - line.from).trim() ? '\n\n' : '\n';
+	const insert = `${before}${text}${after}`;
+	view.dispatch({ changes: { from: at, insert }, selection: { anchor: at + insert.length }, scrollIntoView: true });
+	view.focus();
+}
+
 const HEADING = /^#{1,6} /;
 export const actions = {
 	bold: (view) => wrap(view, '**'),

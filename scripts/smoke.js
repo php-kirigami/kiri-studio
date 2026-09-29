@@ -20,6 +20,7 @@ const scenarios = [
 	{ name: 'markdown', screen: 'entry', open: 'src/_home.md', type: '\nAdded by the smoke test.\n' },
 	{ name: 'yaml', screen: 'entry', open: '_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
+	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
 	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr' },
 ];
 
@@ -38,6 +39,7 @@ for (const scenario of scenarios) {
 		...(scenario.open && { KIRI_STUDIO_SMOKE_OPEN: scenario.open }),
 		...(scenario.type && { KIRI_STUDIO_SMOKE_TYPE: scenario.type }),
 		...(scenario.add && { KIRI_STUDIO_SMOKE_ADD: scenario.add.join(path.delimiter) }),
+		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
 	};
 	delete env.ELECTRON_RUN_AS_NODE;
 	delete env.KIRI_STUDIO_TOKEN;

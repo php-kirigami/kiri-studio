@@ -463,6 +463,15 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
   the client's current version of media files only (SVGs sandboxed by
   their own CSP). `exclude` also hides media subfolders (e.g. a plugin's
   cache).
+- ✅ Images: a click opens a full-size viewer (dimensions, size, ←/→ through
+  the folder, Esc); "Copy code for a page" (viewer and tile menu) copies
+  `{% img-asset <path> <width> %}`, php-prepros's Markdown image tag, with the
+  path relative to `image.source` and `studio.imageWidth` (default 800); the
+  Markdown toolbar's Image button opens a picker and inserts that code as
+  its own paragraph.
+- ✅ CI (`.github/workflows/test.yml`): unit tests and `npm run smoke` on
+  Windows, macOS, and Linux; smoke runs the real app on the fixture site in
+  several scenarios and fails on a missing screen or any renderer error.
 - ✅ Collections (`src/main/collections.js`): files listed live with drafts
   laid over the synced copy, labeled by their first Markdown heading. With
   `create: true` and a `<folder>/*.<ext>` pattern, "+" creates a file from a

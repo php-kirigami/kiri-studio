@@ -123,6 +123,9 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),
 		files: studio.files ? folderTree(treeDir, toPosix(studio.files), excluded) : null,
 		exclude,
+		// For the {% img-asset <path> <width> %} code: paths are relative to image.source.
+		imageSource: toPosix(config.image?.source ?? 'assets/images'),
+		imageWidth: Number.isInteger(studio.imageWidth) && studio.imageWidth > 0 ? studio.imageWidth : 800,
 	};
 }
 

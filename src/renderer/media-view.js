@@ -29,6 +29,116 @@ async function prepare(file) {
 	return new Uint8Array(await file.arrayBuffer());
 }
 
+// The Markdown code that shows an image on a page, for images inside
+// `image.source`: {% img-asset team/ada.png 800 %}. Null otherwise.
+export function imageCode(scope, rel) {
+	const prefix = `${scope.imageSource}/`;
+	return rel.startsWith(prefix) ? `{% img-asset ${rel.slice(prefix.length)} ${scope.imageWidth} %}` : null;
+}
+
+const formatSize = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+
+// Copies an image's Markdown code; the button says so for a moment.
+async function copyCode(button, code) {
+	await studio.copy(code);
+	const label = button.textContent;
+	button.textContent = t('media.copied');
+	button.disabled = true;
+	setTimeout(() => {
+		button.textContent = label;
+		button.disabled = false;
+	}, 1500);
+}
+
+// Full-size viewer: ← / → browse the folder's images, Esc closes.
+export function viewImage(ws, images, index) {
+	let current = index;
+	const img = h('img.lightbox-img', { alt: '' });
+	const name = h('strong.lightbox-name');
+	const meta = h('span.lightbox-meta');
+	const copy = h('button.primary', t('media.copyCode'));
+	const prev = h('button.lightbox-nav.prev', { 'aria-label': t('media.previous'), title: t('media.previous') });
+	const next = h('button.lightbox-nav.next', { 'aria-label': t('media.next'), title: t('media.next') });
+	const close = h('button.secondary', t('media.close'));
+	const dialog = h('dialog.lightbox',
+		h('div.lightbox-bar', h('div', name, meta), h('div.spacer'), copy, close),
+		h('div.lightbox-stage', prev, img, next));
+
+	const show = () => {
+		const file = images[current];
+		const code = imageCode(ws.scope, file.path);
+		img.src = mediaUrl(file);
+		name.textContent = file.name;
+		meta.textContent = formatSize(file.size);
+		img.onload = () => { meta.textContent = `${img.naturalWidth} × ${img.naturalHeight} px · ${formatSize(file.size)}`; };
+		copy.hidden = !code;
+		copy.onclick = () => copyCode(copy, code);
+		prev.disabled = current === 0;
+		next.disabled = current === images.length - 1;
+	};
+	const go = (step) => {
+		current = Math.min(images.length - 1, Math.max(0, current + step));
+		show();
+	};
+	prev.addEventListener('click', () => go(-1));
+	next.addEventListener('click', () => go(1));
+	close.addEventListener('click', () => dialog.close());
+	dialog.addEventListener('keydown', (event) => {
+		if (event.key === 'ArrowLeft') go(-1);
+		if (event.key === 'ArrowRight') go(1);
+	});
+	// A click on the dark backdrop closes too.
+	dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+	dialog.addEventListener('close', () => dialog.remove());
+
+	document.body.append(dialog);
+	show();
+	dialog.showModal();
+	close.focus();
+	return dialog;
+}
+
+// Lets the client pick an image from the images folder (all subfolders).
+// Resolves to its path, or null.
+export async function pickImage(ws) {
+	const root = ws.scope.images?.path;
+	if (!root) return null;
+	const tree = await studio.media.tree(root);
+	const sections = [];
+	const collect = (node, title) => {
+		const images = node.files.filter((file) => IMAGE.test(file.name) && imageCode(ws.scope, file.path));
+		if (images.length) sections.push({ title, images });
+		for (const sub of node.folders) collect(sub, title ? `${title} › ${sub.name}` : sub.name);
+	};
+	collect(tree, '');
+
+	return new Promise((resolve) => {
+		let chosen = null;
+		const dialog = h('dialog.picker',
+			h('div.picker-head', h('h2', t('media.pickTitle')), h('div.spacer'),
+				h('button.secondary', { onclick: () => dialog.close() }, t('common.cancel'))),
+			h('p.help', t('media.pickHelp')),
+			sections.length
+				? sections.map((section) => [
+					section.title && h('h3.picker-folder', section.title),
+					h('ul.tiles.picker-tiles', section.images.map((file) => h('li.tile',
+						h('button.tile-open', {
+							onclick: () => {
+								chosen = file.path;
+								dialog.close();
+							},
+						}, h('img.thumb', { src: mediaUrl(file), alt: '', loading: 'lazy' }), h('span.tile-name', file.name))))),
+				])
+				: h('p.empty', t('media.pickNone')));
+		dialog.addEventListener('close', () => {
+			dialog.remove();
+			resolve(chosen);
+		});
+		document.body.append(dialog);
+		dialog.showModal();
+	});
+}
+
 // A small text-input dialog (Electron has no window.prompt).
 export function ask(title, value = '') {
 	return new Promise((resolve) => {
@@ -108,11 +218,17 @@ export async function showMedia(ws, media, folderPath = media.root) {
 		refresh();
 	}
 
-	const menu = (item, isFolder) => h('details.tile-menu',
-		h('summary', { 'aria-label': t('media.actions'), title: t('media.actions') }),
-		h('div.menu',
-			h('button.link', { onclick: () => rename(item, isFolder) }, t('media.rename')),
-			h('button.link.danger', { onclick: () => remove(item, isFolder) }, t('media.delete'))));
+	const menu = (item, isFolder) => {
+		const code = !isFolder && IMAGE.test(item.name) && imageCode(ws.scope, item.path);
+		const copy = code && h('button.link', { onclick: () => copyCode(copy, code) }, t('media.copyCode'));
+		return h('details.tile-menu',
+			h('summary', { 'aria-label': t('media.actions'), title: t('media.actions') }),
+			h('div.menu',
+				copy,
+				h('button.link', { onclick: () => rename(item, isFolder) }, t('media.rename')),
+				h('button.link.danger', { onclick: () => remove(item, isFolder) }, t('media.delete'))));
+	};
+	const images = folder.files.filter((file) => IMAGE.test(file.name));
 
 	const folderTile = (sub) => h('li.tile.folder-tile',
 		h('button.tile-open', { onclick: () => open(sub.path) },
@@ -122,7 +238,11 @@ export async function showMedia(ws, media, folderPath = media.root) {
 
 	const fileTile = (file) => h('li.tile', { dataset: { status: file.status ?? '' } },
 		IMAGE.test(file.name)
-			? h('img.thumb', { src: mediaUrl(file), alt: '', loading: 'lazy', draggable: 'false' })
+			? h('button.thumb-open', {
+				title: t('media.view'),
+				'aria-label': `${t('media.view')}: ${file.name}`,
+				onclick: () => viewImage(ws, images, images.indexOf(file)),
+			}, h('img.thumb', { src: mediaUrl(file), alt: '', loading: 'lazy', draggable: 'false' }))
 			: h('span.doc', { dataset: { ext: file.name.split('.').pop().toUpperCase() } }),
 		h('span.tile-name', { title: file.name }, file.name),
 		file.status && h('span.badge', t(`media.status.${file.status}`)),
@@ -171,4 +291,5 @@ export async function showMedia(ws, media, folderPath = media.root) {
 
 	main.replaceChildren(drop);
 	ws.smokeAdd = addFiles;
+	ws.smokeView = () => images.length && viewImage(ws, images, 0);
 }

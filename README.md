@@ -50,6 +50,7 @@ npm install
 npm start      # builds the UI, then launches the app
 npm run build  # builds the UI only (build/renderer/)
 npm test       # unit tests (node:test)
+npm run smoke  # end-to-end: the real app on test/fixtures/site (run npm run build first)
 ```
 
 npm 12 blocks install scripts unless approved; `package.json` approves
@@ -71,6 +72,7 @@ Environment variables for development and smoke tests:
 | `KIRI_STUDIO_SMOKE_SCREEN` | Screen to capture: `signin`, `sites`, `workspace` (default), or `entry`. |
 | `KIRI_STUDIO_SMOKE_OPEN` | Open this content path, or `media:images` / `media:files`, once the workspace shows (pair with `entry`). |
 | `KIRI_STUDIO_SMOKE_ADD` | Local files (separated by `;` on Windows, `:` elsewhere) to add in the opened media manager. |
+| `KIRI_STUDIO_SMOKE_VIEW` | Open the first image of the opened media manager in the viewer. |
 | `KIRI_STUDIO_SMOKE_TYPE` | Type this text at the end of the opened file and save it as a draft. |
 
 ---

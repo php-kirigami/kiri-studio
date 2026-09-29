@@ -54,6 +54,7 @@ ipcMain.handle('app:info', () => ({
 	locale: process.env.KIRI_STUDIO_LOCALE || app.getLocale(),
 	smokeOpen: process.env.KIRI_STUDIO_SMOKE_OPEN || null,
 	smokeType: process.env.KIRI_STUDIO_SMOKE_TYPE || null,
+	smokeView: !!process.env.KIRI_STUDIO_SMOKE_VIEW,
 	// Smoke tests: local files to add in the opened media manager.
 	smokeFiles: (process.env.KIRI_STUDIO_SMOKE_ADD ?? '').split(path.delimiter).filter(Boolean).map((file) => ({
 		name: path.basename(file),
@@ -100,6 +101,10 @@ ipcMain.handle('auth:start', async () => {
 		.finally(() => { if (signIn?.abort === abort) signIn = null; });
 
 	return { userCode: code.userCode, verificationUri: code.verificationUri, expiresIn: code.expiresIn };
+});
+
+ipcMain.handle('app:copy', (_event, text) => {
+	if (typeof text === 'string') clipboard.writeText(text);
 });
 
 ipcMain.handle('auth:reopen', () => {

@@ -10,6 +10,7 @@ const listen = (channel) => (callback) => {
 
 contextBridge.exposeInMainWorld('studio', {
 	info: () => ipcRenderer.invoke('app:info'),
+	copy: (text) => ipcRenderer.invoke('app:copy', text),
 	auth: {
 		status: () => ipcRenderer.invoke('auth:status'),
 		start: () => ipcRenderer.invoke('auth:start'),

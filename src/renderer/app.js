@@ -2,10 +2,10 @@
 // framework. Every string shown to the client goes through t(); data from
 // GitHub or the site is only ever set as text, never as HTML.
 import { changeCount, setLocale, t } from './i18n.js';
-import { actions, createMarkdownEditor } from './markdown-editor.js';
+import { actions, createMarkdownEditor, insertBlock } from './markdown-editor.js';
 import { createDataEditor } from './data-editor.js';
 import { h } from './dom.js';
-import { ask, showMedia } from './media-view.js';
+import { ask, imageCode, pickImage, showMedia } from './media-view.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -144,6 +144,7 @@ async function openSite(user, site, sites) {
 	setStatus(opened.status);
 
 	ws = {
+		scope: opened.scope,
 		main,
 		sidebar,
 		changes: new Set(opened.changes),
@@ -246,6 +247,10 @@ async function openSite(user, site, sites) {
 				await ws.smokeAdd(info.smokeFiles.map((f) => new File([f.bytes], f.name, { type: f.type })));
 			}
 			await new Promise((resolve) => setTimeout(resolve, 800)); // thumbnails
+			if (info.smokeView) {
+				ws.smokeView();
+				await new Promise((resolve) => setTimeout(resolve, 600));
+			}
 			studio.ui.settled('entry');
 		}
 	} else if (info.smokeOpen) {
@@ -361,7 +366,7 @@ async function showEntry(entry) {
 		dataset: { action },
 		title: key ? `${label} (${key})` : label,
 		'aria-label': label,
-		onclick: () => actions[action](editor.view),
+		onclick: () => (action === 'image' ? insertImage(editor.view) : actions[action](editor.view)),
 	});
 
 	discard.addEventListener('click', async () => {
@@ -395,6 +400,7 @@ async function showEntry(entry) {
 			tool('bold', t('editor.bold'), `${mod}B`),
 			tool('italic', t('editor.italic'), `${mod}I`),
 			tool('link', t('editor.link'), `${mod}K`),
+			ws.scope.images && tool('image', t('editor.image')),
 			h('span.sep'),
 			tool('bullets', t('editor.bullets')),
 			tool('numbers', t('editor.numbers')),
@@ -403,6 +409,13 @@ async function showEntry(entry) {
 		surface,
 	].filter(Boolean));
 	editor.focus();
+}
+
+// The toolbar's Image button: pick one, insert its {% img-asset %} code.
+async function insertImage(view) {
+	const rel = await pickImage(ws);
+	if (rel) insertBlock(view, imageCode(ws.scope, rel));
+	else view.focus();
 }
 
 // "src/blog/post.md" against "src/blog/*.md" — enough glob for collection
