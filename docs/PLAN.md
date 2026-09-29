@@ -35,13 +35,16 @@ only), and `.github/workflows/release.yml` (tag `v*` → draft release, the
 smoke tests run on each packaged app first via `SMOKE_APP`). Verified
 locally on Windows: the installer builds and all 7 smoke scenarios pass on
 `dist/win-unpacked` (preview included: the worker runs fine from the asar).
-**Not yet run:** the release workflow itself (macOS ad-hoc signing with
-`identity: "-"` and the Linux `.deb` are unverified), installing the NSIS
-installer, and an actual update from one release to the next.
+**v0.1.0** went through the release workflow on all 3 OSes (macOS ad-hoc
+signing and the `.deb` work; the Windows smoke `viewer` scenario flaked
+once on a fixed delay, fixed in `f2d6d3c`, job re-run). It sits as a
+**draft** release until the maintainer publishes it. Not yet tried: running
+the installers on real machines, and an update from one release to the next.
 
 **Next, in order:**
-1. First real release (e.g. `v0.1.0`) to exercise the workflow, then a
-   `v0.1.1` to watch an installed app update itself.
+1. Publish the v0.1.0 draft, install it (Windows, and a Linux AppImage if at
+   hand), then release `v0.1.1` and watch the installed app update itself on
+   quit.
 2. Polish: app icon (none yet: Electron's default), "Updated to x.y" note on
    first launch, loading indicator on first site list, offline fallback
    test, clicking through the real sign-in once, the sandbox sync check
