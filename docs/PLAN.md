@@ -17,8 +17,8 @@ binary, deletions), image/document managers (subfolders, downscale, viewer,
 - Live preview (`src/main/preview.js`, `preview-worker.js`, `deps.js`,
   `src/renderer/preview-pane.js`) works locally on the sandbox and the
   fixture; the smoke `preview` scenario checks the typed text reaches the
-  generated HTML. Just committed with the fixture fixes (data moved under
-  `src/`, `prepros: {}`); check the Test workflow went green on all 3 OSes.
+  generated HTML. Committed (`aac56b8`) with the fixture fixes (data moved
+  under `src/`, `prepros: {}`); the Test workflow is green on all 3 OSes.
 
 **Next, in order:**
 1. **Multi-editor awareness** (the maintainer's request): several people may
