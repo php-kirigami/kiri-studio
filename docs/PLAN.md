@@ -45,9 +45,7 @@ the installers on real machines, and an update from one release to the next.
 1. Publish the v0.1.0 draft, install it (Windows, and a Linux AppImage if at
    hand), then release `v0.1.1` and watch the installed app update itself on
    quit.
-2. Polish: app icon (none yet: Electron's default), "Updated to x.y" note on
-   first launch, loading indicator on first site list, offline fallback
-   test, clicking through the real sign-in once, the sandbox sync check
+2. Polish: loading indicator on first site list, offline fallback test, clicking through the real sign-in once, the sandbox sync check
    above.
 3. Phase 4 (publish) when needed. After a publish, a sync + `drafts.tidy()`
    clears what was published.

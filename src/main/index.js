@@ -437,6 +437,8 @@ function createWindow() {
 		show: false,
 		title: 'Kiri Studio',
 		backgroundColor: '#f6f4ef',
+		// Linux takes the window icon from here; Windows and macOS from the app.
+		icon: path.join(import.meta.dirname, '..', '..', 'resources', 'icon.png'),
 		webPreferences: {
 			preload: path.join(import.meta.dirname, '..', 'preload', 'index.cjs'),
 			contextIsolation: true,

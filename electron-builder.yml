@@ -13,6 +13,9 @@ copyright: Copyright © Maxime Larrivée-Roy
 
 directories:
   output: dist
+  # icon.png (at least 512×512, transparent corners): electron-builder makes
+  # the .ico and .icns from it.
+  buildResources: resources
 
 # The renderer ships as its bundle (build/renderer); its sources and the
 # CodeMirror packages it bundles stay out.
@@ -22,6 +25,7 @@ files:
   - src/preload/**
   - src/shared/**
   - build/renderer/**
+  - resources/icon.png
   - "!**/*.map"
 
 publish:
