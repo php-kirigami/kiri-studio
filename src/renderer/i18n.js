@@ -138,6 +138,9 @@ const strings = {
 		'error.offline': 'Can’t reach GitHub. Check your internet connection.',
 		'error.generic': 'Something went wrong.',
 		'error.retry': 'Try again',
+		'app.updated': 'Kiri Studio was updated to {version}.',
+		'app.whatsNew': 'What’s new',
+		'app.dismiss': 'Close',
 	},
 	fr: {
 		loading: 'Chargement…',
@@ -275,6 +278,9 @@ const strings = {
 		'error.offline': 'Impossible de joindre GitHub. Vérifiez votre connexion Internet.',
 		'error.generic': 'Un problème est survenu.',
 		'error.retry': 'Réessayer',
+		'app.updated': 'Kiri Studio a été mis à jour en {version}.',
+		'app.whatsNew': 'Nouveautés',
+		'app.dismiss': 'Fermer',
 	},
 };
 

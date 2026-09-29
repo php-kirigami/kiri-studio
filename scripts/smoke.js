@@ -24,7 +24,8 @@ const scenarios = [
 	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
-	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr' },
+	// Last run was an older version: the status bar says the app updated.
+	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr', prefs: { lastVersion: '0.0.1' } },
 	// A change whose file someone else published since: the editor says so.
 	{ name: 'outdated', screen: 'entry', open: 'src/_home.md',
 		drafts: { 'src/_home.md': { base: '0'.repeat(64), text: '# Home\n\nMy version.\n' } } },
@@ -38,6 +39,7 @@ let failed = 0;
 for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'kiri-studio-smoke-'));
 	const screenshot = path.join(outDir, `${scenario.name}.png`);
+	if (scenario.prefs) fs.writeFileSync(path.join(userData, 'preferences.json'), JSON.stringify(scenario.prefs));
 	// Unpublished changes to start with, as drafts.js stores them.
 	if (scenario.drafts) {
 		const dir = path.join(userData, 'sites', 'local__site', 'drafts');

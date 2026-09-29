@@ -140,7 +140,7 @@ async function openSite(user, site, sites) {
 		topbar(user, site, sites),
 		sidebar,
 		main,
-		h('footer.statusbar', status, changesLabel));
+		h('footer.statusbar', status, updatedNote(), changesLabel));
 	show('workspace-loading', layout);
 
 	let opened;
@@ -323,6 +323,22 @@ async function openSite(user, site, sites) {
 			studio.ui.settled('entry');
 		}
 	}
+}
+
+// After the app updated itself: one dismissable line, with the release notes.
+// Shown until closed or until the next launch.
+let updateSeen = false;
+function updatedNote() {
+	if (!info.updated || updateSeen) return h('span');
+	const note = h('span.updated',
+		t('app.updated', { version: info.updated }), ' ',
+		h('a', { href: `https://github.com/php-kirigami/kiri-studio/releases/tag/v${info.updated}`, target: '_blank' }, t('app.whatsNew')),
+		h('button.link.dismiss', {
+			'aria-label': t('app.dismiss'),
+			title: t('app.dismiss'),
+			onclick: () => { updateSeen = true; note.replaceWith(h('span')); },
+		}, '×'));
+	return note;
 }
 
 function topbar(user, site, sites) {

@@ -52,6 +52,8 @@ async function useToken(token) {
 
 ipcMain.handle('app:info', () => ({
 	version: app.getVersion(),
+	// Set on the first launch after an update: the renderer shows a short note.
+	updated: updatedFrom ? app.getVersion() : null,
 	// Smoke tests can force the UI language and open an entry by path.
 	locale: process.env.KIRI_STUDIO_LOCALE || app.getLocale(),
 	smokeOpen: process.env.KIRI_STUDIO_SMOKE_OPEN || null,
@@ -475,7 +477,14 @@ function createWindow() {
 	win.loadFile(path.join(import.meta.dirname, '..', '..', 'build', 'renderer', 'index.html'));
 }
 
+// The version that ran last time: a different one means the app just updated
+// itself. Remembered right away, so the note shows on one launch only.
+let updatedFrom = null;
+
 app.whenReady().then(() => {
+	const { lastVersion } = readPrefs();
+	if (lastVersion && lastVersion !== app.getVersion()) updatedFrom = lastVersion;
+	if (lastVersion !== app.getVersion()) writePrefs({ lastVersion: app.getVersion() });
 	protocol.handle('studio-media', serveMedia);
 	createWindow();
 	if (process.env.KIRI_STUDIO_SCREENSHOT) setTimeout(() => app.exit(1), 120_000);
