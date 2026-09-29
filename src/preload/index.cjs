@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld('studio', {
 		openLive: () => ipcRenderer.invoke('site:openLive'),
 		onSync: listen('sync:status'),
 	},
+	data: {
+		schema: (path) => ipcRenderer.invoke('data:schema', path),
+		check: (path, text) => ipcRenderer.invoke('data:check', path, text),
+	},
 	drafts: {
 		save: (path, text) => ipcRenderer.invoke('drafts:save', path, text),
 		discard: (path) => ipcRenderer.invoke('drafts:discard', path),

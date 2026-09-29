@@ -106,6 +106,8 @@ export function createMarkdownEditor(parent, { text, onChange }) {
 		state: EditorState.create({
 			doc: text,
 			extensions: [
+				// Keep the file's line endings, so saving never rewrites every line.
+				EditorState.lineSeparator.of(/\r\n/.test(text) ? '\r\n' : '\n'),
 				history(),
 				drawSelection(),
 				shortcuts,

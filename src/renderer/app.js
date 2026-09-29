@@ -3,6 +3,7 @@
 // GitHub or the site is only ever set as text, never as HTML.
 import { changeCount, fileCount, setLocale, t } from './i18n.js';
 import { actions, createMarkdownEditor } from './markdown-editor.js';
+import { createDataEditor } from './data-editor.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -207,10 +208,18 @@ async function openSite(user, site, sites) {
 	};
 
 	const { scope } = opened;
+	// Content grouped by the page it belongs to, in discovery order.
+	const groups = new Map();
+	for (const entry of scope.content) {
+		const name = entry.group ?? t('ws.other');
+		if (!groups.has(name)) groups.set(name, []);
+		groups.get(name).push(entry);
+	}
+
 	sidebar.replaceChildren(...[
-		h('section.group',
-			h('h2', t('ws.pages')),
-			h('ul', scope.content.map((entry) => h('li', entryButton(entry))))),
+		[...groups].map(([name, entries]) => h('section.group',
+			h('h2', name),
+			h('ul', entries.map((entry) => h('li', entryButton(entry)))))),
 		scope.collections.map((collection) => h('section.group',
 			h('h2', collection.label),
 			h('ul', collection.files.map((entry) => h('li', entryButton(entry)))))),
@@ -227,7 +236,11 @@ async function openSite(user, site, sites) {
 		const button = sidebar.querySelector(`[data-path="${CSS.escape(info.smokeOpen)}"]`);
 		if (entry && button) {
 			await select(button, () => showEntry(entry));
-			if (info.smokeType) await ws.smokeType?.(info.smokeType);
+			if (info.smokeType) {
+				await ws.smokeType?.(info.smokeType);
+				await new Promise((resolve) => setTimeout(resolve, 1200)); // let the checks run
+				ws.showProblems?.();
+			}
 			studio.ui.settled('entry');
 		}
 	}
@@ -257,14 +270,6 @@ async function showEntry(entry) {
 		return main.replaceChildren(h('p.notice', errorMessage(error)));
 	}
 
-	if (entry.kind !== 'markdown') {
-		// Data files get forms next; shown read-only until then.
-		return main.replaceChildren(
-			h('h1', entry.label),
-			h('p.notice', t('ws.readOnly')),
-			h('pre.source', file.text));
-	}
-
 	// Autosave: every change is written as a draft half a second after typing
 	// stops, and immediately when leaving the file or closing the app.
 	const saveState = h('span.save-state');
@@ -285,16 +290,40 @@ async function showEntry(entry) {
 		if (pending === null) setSaveState('saved');
 	};
 
-	const surface = h('div.md-surface');
-	const editor = createMarkdownEditor(surface, {
-		text: file.text,
-		onChange(text) {
-			pending = text;
-			setSaveState('saving');
-			clearTimeout(timer);
-			timer = setTimeout(flush, 500);
-		},
-	});
+	const onChange = (text) => {
+		pending = text;
+		setSaveState('saving');
+		clearTimeout(timer);
+		timer = setTimeout(flush, 500);
+	};
+
+	const isMarkdown = entry.kind === 'markdown';
+	const surface = h(isMarkdown ? 'div.md-surface' : 'div.data-surface');
+	let editor;
+	let help = null;
+	if (isMarkdown) {
+		editor = createMarkdownEditor(surface, { text: file.text, onChange });
+	} else {
+		const schema = await studio.data.schema(entry.path);
+		const problems = h('button.problems', { dataset: { count: '0' } });
+		editor = createDataEditor(surface, {
+			text: file.text,
+			format: /\.json$/i.test(entry.path) ? 'json' : 'yaml',
+			schema,
+			check: (text) => studio.data.check(entry.path, text),
+			message: checkMessage,
+			onChange,
+			onProblems(count) {
+				problems.dataset.count = String(count);
+				problems.textContent = count === 0 ? t('check.none') : count === 1 ? t('check.one') : t('check.many', { count });
+			},
+			labels: { required: t('check.requiredLabel') },
+		});
+		problems.addEventListener('click', () => editor.showProblems());
+		help = h('div.help',
+			h('p', schema ? t('editor.schemaHelp') : t('editor.noSchemaHelp')),
+			problems);
+	}
 
 	const tool = (action, label, key) => h('button.tool', {
 		dataset: { action },
@@ -317,6 +346,7 @@ async function showEntry(entry) {
 		await flush();
 		editor.destroy();
 	};
+	ws.showProblems = editor.showProblems;
 	ws.smokeType = async (text) => {
 		const { view } = editor;
 		view.dispatch({ changes: { from: view.state.doc.length, insert: text } });
@@ -324,9 +354,9 @@ async function showEntry(entry) {
 	};
 
 	const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
-	main.replaceChildren(
+	main.replaceChildren(...[
 		h('div.entry-head', h('h1', entry.label), saveState, discard),
-		h('div.toolbar', { role: 'toolbar' },
+		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),
 			h('span.sep'),
@@ -337,8 +367,16 @@ async function showEntry(entry) {
 			tool('bullets', t('editor.bullets')),
 			tool('numbers', t('editor.numbers')),
 			tool('quote', t('editor.quote'))),
-		surface);
+		help,
+		surface,
+	].filter(Boolean));
 	editor.focus();
+}
+
+// Plain-language text for a data-file diagnostic from the main process.
+function checkMessage({ key, params }) {
+	const text = t(key, params);
+	return params.description ? `${text}\n${params.description}` : text;
 }
 
 // Closing the app: save what's being typed before the window goes away.

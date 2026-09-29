@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildScope, firstDocBlock, inScope, isPage, parseDocBlock } from '../src/main/scope.js';
+import { buildScope, firstDocBlock, humanize, inScope, isPage, parseDocBlock, stripJsonComments } from '../src/main/scope.js';
 
 function site(t, files) {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiri-studio-scope-'));
@@ -85,19 +85,20 @@ studio:
 
 	const scope = buildScope(dir);
 
-	assert.deepEqual(scope.content.map(({ path, label, kind }) => ({ path, label, kind })), [
-		{ path: 'src/about/_about.md', label: 'About us', kind: 'markdown' },
-		{ path: 'src/data/_articles.yaml', label: 'Articles', kind: 'data' },
-		{ path: 'src/_intro.md', label: 'Home · Intro', kind: 'markdown' },
-		{ path: '_data/team.yaml', label: 'Team', kind: 'data' },
+	// Home page first, then pages in path order; files in annotation order.
+	assert.deepEqual(scope.content.map(({ path, label, group, kind }) => ({ path, label, group, kind })), [
+		{ path: 'src/_intro.md', label: 'Intro', group: 'Home', kind: 'markdown' },
+		{ path: 'src/about/_about.md', label: 'About us', group: 'About us', kind: 'markdown' },
+		{ path: 'src/data/_articles.yaml', label: 'Articles', group: 'Data', kind: 'data' },
+		{ path: '_data/team.yaml', label: 'Team', group: null, kind: 'data' },
 	]);
 	assert.deepEqual(scope.collections, [{
 		pattern: 'src/blog/*.md',
 		label: 'Blog posts',
 		create: true,
 		files: [
-			{ path: 'src/blog/first-post.md', label: 'First post', kind: 'markdown' },
-			{ path: 'src/blog/second-post.md', label: 'Second post', kind: 'markdown' },
+			{ path: 'src/blog/first-post.md', label: 'First post', group: null, kind: 'markdown', schema: null },
+			{ path: 'src/blog/second-post.md', label: 'Second post', group: null, kind: 'markdown', schema: null },
 		],
 	}]);
 	assert.deepEqual(scope.images, {
@@ -116,6 +117,52 @@ studio:
 	assert.equal(inScope(scope, 'src/data/_stats.json'), false);
 	assert.equal(inScope(scope, 'kirigami.yaml'), false);
 	assert.equal(inScope(scope, 'src/about/_index.php'), false);
+});
+
+test('humanize turns tags and file names into labels', () => {
+	assert.equal(humanize('citationBrown'), 'Citation brown');
+	assert.equal(humanize('01-portraits'), 'Portraits');
+	assert.equal(humanize('_about_us'), 'About us');
+});
+
+test('schemas: a modeline wins, then studio.schemas, then .vscode yaml.schemas', (t) => {
+	const dir = site(t, {
+		'kirigami.yaml': `
+kirigami:
+  root: src
+studio:
+  include:
+    - _data/modeline.yaml
+    - _data/team.yaml
+    - _data/publications.yaml
+    - _data/deep/publications.yaml
+    - _data/plain.yaml
+  schemas:
+    schemas/team.json: _data/team.yaml
+`,
+		'_data/modeline.yaml': '# yaml-language-server: $schema=../schemas/inline.json\n- a: 1\n',
+		'_data/team.yaml': '- name: Ada\n',
+		'_data/publications.yaml': '[]\n',
+		'_data/deep/publications.yaml': '[]\n',
+		'_data/plain.yaml': 'a: 1\n',
+		'.vscode/settings.json': `{
+	// JSONC, like VS Code writes it
+	"yaml.schemas": {
+		"https://example.com/team.json": "team.yaml",
+		"./assets/schemas/publications.schema.json": "publications.yaml", /* trailing comma next */
+	},
+}`,
+	});
+	const schemaOf = (rel) => buildScope(dir).content.find((entry) => entry.path === rel).schema;
+	assert.deepEqual(schemaOf('_data/modeline.yaml'), { path: 'schemas/inline.json' });
+	assert.deepEqual(schemaOf('_data/team.yaml'), { path: 'schemas/team.json' }, 'studio.schemas before .vscode');
+	assert.deepEqual(schemaOf('_data/publications.yaml'), { path: 'assets/schemas/publications.schema.json' });
+	assert.deepEqual(schemaOf('_data/deep/publications.yaml'), { path: 'assets/schemas/publications.schema.json' }, 'a bare file name matches anywhere');
+	assert.equal(schemaOf('_data/plain.yaml'), null);
+});
+
+test('stripJsonComments keeps strings that look like comments', () => {
+	assert.deepEqual(JSON.parse(stripJsonComments('{ "url": "https://x.com/a//b", /* c */ "n": 1, // d\n }')), { url: 'https://x.com/a//b', n: 1 });
 });
 
 test('buildScope: images default to image.source, false hides them, no files by default', (t) => {

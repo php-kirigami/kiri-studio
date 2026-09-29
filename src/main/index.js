@@ -8,8 +8,9 @@ import { createTokenStore, pollForToken, requestDeviceCode } from './auth.js';
 import { createClient } from './github.js';
 import { listSites } from './sites.js';
 import { readSyncState, syncSite } from './sync.js';
-import { buildScope, inScope } from './scope.js';
+import { buildScope, inScope, readStudioConfig } from './scope.js';
 import { createDrafts } from './drafts.js';
+import { checkData } from './validate.js';
 
 app.setName('Kiri Studio');
 if (process.env.KIRI_STUDIO_USER_DATA) app.setPath('userData', path.resolve(process.env.KIRI_STUDIO_USER_DATA));
@@ -102,7 +103,16 @@ ipcMain.handle('auth:signOut', () => {
 	writePrefs({ lastSite: null });
 });
 
+// Development: KIRI_STUDIO_LOCAL_SITE=<folder> shows that local site instead
+// of GitHub ones, as a client would see it (no sync; drafts kept apart).
+const localSite = process.env.KIRI_STUDIO_LOCAL_SITE ? path.resolve(process.env.KIRI_STUDIO_LOCAL_SITE) : null;
+
 ipcMain.handle('sites:list', async () => {
+	if (localSite) {
+		const name = path.basename(localSite);
+		const title = (() => { try { return readStudioConfig(localSite).kirigami?.project; } catch { return null; } })() || name;
+		return { sites: [{ fullName: `local/${name}`, owner: 'local', name, title, url: null, branch: null, local: true }], lastSite: null };
+	}
 	const sites = await listSites(gh);
 	return { sites, lastSite: readPrefs().lastSite ?? null };
 });
@@ -111,15 +121,16 @@ ipcMain.handle('sites:list', async () => {
 // reached, falls back to the last synced copy.
 ipcMain.handle('site:open', async (_event, site) => {
 	const dir = siteDir(site);
-	const treeDir = path.join(dir, 'tree');
+	const treeDir = localSite && site.local ? localSite : path.join(dir, 'tree');
 	let status = 'ready';
 	try {
-		await syncSite(gh, site, dir, (step) => send('sync:status', step));
+		if (!site.local) await syncSite(gh, site, dir, (step) => send('sync:status', step));
 	} catch (error) {
 		if (!fs.existsSync(treeDir)) throw error;
 		status = 'offline';
 	}
 	current = { site, treeDir, scope: buildScope(treeDir), drafts: createDrafts(dir, treeDir) };
+	schemas.clear();
 	writePrefs({ lastSite: site.fullName });
 	return {
 		site,
@@ -146,6 +157,42 @@ ipcMain.handle('drafts:save', (_event, rel, text) => {
 	if (typeof text !== 'string') throw new Error('Text expected.');
 	current.drafts.save(editable(rel), text);
 	return current.drafts.list().map((draft) => draft.path);
+});
+
+// JSON Schemas of data files, loaded once per open site: from the synced copy
+// (or the client's draft of it), or over HTTPS for a URL.
+const schemas = new Map();
+async function schemaOf(rel) {
+	const ref = [...current.scope.content, ...current.scope.collections.flatMap((c) => c.files)]
+		.find((entry) => entry.path === rel)?.schema;
+	if (!ref) return null;
+	const id = ref.url ?? ref.path;
+	if (!schemas.has(id)) {
+		schemas.set(id, (async () => {
+			try {
+				if (ref.url) {
+					if (!ref.url.startsWith('https://')) return null;
+					const res = await fetch(ref.url);
+					return res.ok ? await res.json() : null;
+				}
+				const file = path.resolve(current.treeDir, ref.path);
+				if (!file.startsWith(path.resolve(current.treeDir) + path.sep)) return null;
+				return JSON.parse(fs.readFileSync(file, 'utf8'));
+			} catch (error) {
+				// Unreachable or broken schema: the client edits without it; the
+				// maintainer sees why in the app's log.
+				console.warn(`Kiri Studio: schema ${id} unavailable: ${error.message}`);
+				return null;
+			}
+		})());
+	}
+	return schemas.get(id);
+}
+
+ipcMain.handle('data:schema', (_event, rel) => schemaOf(editable(rel)));
+ipcMain.handle('data:check', async (_event, rel, text) => {
+	if (typeof text !== 'string') throw new Error('Text expected.');
+	return checkData(text, await schemaOf(editable(rel)));
 });
 
 ipcMain.handle('drafts:discard', (_event, rel) => {
@@ -186,6 +233,12 @@ function createWindow() {
 	});
 	win.removeMenu();
 	win.once('ready-to-show', () => win.show());
+	if (process.env.KIRI_STUDIO_SCREENSHOT) {
+		// Smoke tests: surface renderer errors in the terminal.
+		win.webContents.on('console-message', ({ level, message }) => {
+			if (level !== 'info' && level !== 'debug') console.log(`[renderer ${level}] ${message}`);
+		});
+	}
 
 	// Before closing, let the renderer save what's being typed (autosave waits
 	// half a second after the last keystroke). Close anyway after 3 seconds.

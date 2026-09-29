@@ -2,7 +2,8 @@
 // block (see the core README's `studio:` section):
 //
 //   - content: every .md/.yaml/.yml/.json file a page loads through a PHPDOC
-//     annotation, plus `include` entries, minus `exclude`;
+//     annotation, grouped by page in annotation order, plus `include`
+//     entries, minus `exclude`; data files carry their JSON Schema, if any;
 //   - collections: `include` globs whose files the client may add or delete;
 //   - images / files: the media folders, as folder trees.
 //
@@ -14,7 +15,7 @@
 // POSIX, relative to the repository root.
 import fs from 'node:fs';
 import path from 'node:path';
-import * as yaml from 'js-yaml';
+import * as yaml from 'yaml';
 
 const DATA_EXTS = new Set(['.md', '.yaml', '.yml', '.json']);
 const URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
@@ -59,7 +60,7 @@ export function isPage(rel) {
 }
 
 export function readStudioConfig(treeDir) {
-	const config = yaml.load(fs.readFileSync(path.join(treeDir, 'kirigami.yaml'), 'utf8'));
+	const config = yaml.parse(fs.readFileSync(path.join(treeDir, 'kirigami.yaml'), 'utf8'));
 	return config && typeof config === 'object' ? config : {};
 }
 
@@ -71,15 +72,21 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		const abs = path.resolve(treeDir, rel);
 		return inside(treeDir, abs) && fs.existsSync(abs) && fs.statSync(abs).isFile();
 	};
-	const labelFor = (rel, fallback) => studio.labels?.[rel] ?? fallback;
+	const schemaFor = schemaResolver(treeDir, studio);
 
+	// Entries keep discovery order: pages as the tree walk meets them (the home
+	// page first), each page's files in annotation order.
 	const content = new Map();
-	const add = (rel, fallback, page = null) => {
+	const entry = (rel, label, group = null) => {
+		const kind = kindOf(rel);
+		return { path: rel, label: studio.labels?.[rel] ?? label, group, kind, schema: kind === 'data' ? schemaFor(rel) : null };
+	};
+	const add = (rel, label, group) => {
 		if (content.has(rel) || excluded(rel) || !isFile(rel)) return;
-		content.set(rel, { path: rel, label: labelFor(rel, fallback), kind: kindOf(rel), page });
+		content.set(rel, entry(rel, label, group));
 	};
 
-	// Page-referenced content.
+	// Page-referenced content, grouped under the page's title.
 	for (const pageRel of walk(treeDir, root, (rel) => isPage(path.posix.relative(root, rel)))) {
 		const block = firstDocBlock(fs.readFileSync(path.join(treeDir, pageRel), 'utf8'));
 		if (!block) continue;
@@ -88,7 +95,7 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		for (const [tag, value] of Object.entries(info)) {
 			if (!DATA_EXTS.has(path.posix.extname(value).toLowerCase()) || URL_RE.test(value)) continue;
 			const rel = path.posix.normalize(path.posix.join(path.posix.dirname(pageRel), value));
-			add(rel, tag === 'content' ? title : `${title} · ${humanize(tag)}`, pageRel);
+			add(rel, tag === 'content' ? title : humanize(tag), title);
 		}
 	}
 
@@ -97,20 +104,20 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	for (const item of studio.include ?? []) {
 		const { path: pattern, label, create = false } = typeof item === 'string' ? { path: item } : item;
 		if (!GLOB_RE.test(pattern)) {
-			add(pattern, label ?? humanize(path.posix.basename(pattern, path.posix.extname(pattern))));
+			add(pattern, label ?? humanize(path.posix.basename(pattern, path.posix.extname(pattern))), null);
 			continue;
 		}
 		const files = fs.globSync(pattern, { cwd: treeDir })
 			.map(toPosix)
 			.filter((rel) => DATA_EXTS.has(path.posix.extname(rel).toLowerCase()) && !excluded(rel) && isFile(rel))
 			.sort()
-			.map((rel) => ({ path: rel, label: humanize(path.posix.basename(rel, path.posix.extname(rel))), kind: kindOf(rel) }));
+			.map((rel) => entry(rel, humanize(path.posix.basename(rel, path.posix.extname(rel)))));
 		collections.push({ pattern, label: label ?? humanize(path.posix.dirname(pattern).split('/').pop()), create, files });
 	}
 
 	const imagesDir = studio.images === false ? null : toPosix(studio.images ?? config.image?.source ?? 'assets/images');
 	return {
-		content: [...content.values()].sort((a, b) => a.label.localeCompare(b.label)),
+		content: [...content.values()],
 		collections,
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),
 		files: studio.files ? folderTree(treeDir, toPosix(studio.files), excluded) : null,
@@ -150,15 +157,17 @@ export function folderTree(treeDir, rel, excluded = () => false) {
 	return node;
 }
 
+// Files of a folder before its subfolders, each sorted, so the home page comes
+// first and the order doesn't depend on the file system.
 function* walk(treeDir, rel, accept) {
 	const abs = path.join(treeDir, rel);
 	if (!fs.existsSync(abs)) return;
-	for (const entry of fs.readdirSync(abs, { withFileTypes: true })) {
-		if (entry.name.startsWith('.') || entry.name === 'node_modules') continue;
-		const child = rel === '.' ? entry.name : `${rel}/${entry.name}`;
-		if (entry.isDirectory()) yield* walk(treeDir, child, accept);
-		else if (entry.isFile() && accept(child)) yield child;
-	}
+	const entries = fs.readdirSync(abs, { withFileTypes: true })
+		.filter((entry) => !entry.name.startsWith('.') && entry.name !== 'node_modules')
+		.sort((a, b) => (a.name < b.name ? -1 : 1));
+	const child = (entry) => (rel === '.' ? entry.name : `${rel}/${entry.name}`);
+	for (const entry of entries) if (entry.isFile() && accept(child(entry))) yield child(entry);
+	for (const entry of entries) if (entry.isDirectory()) yield* walk(treeDir, child(entry), accept);
 }
 
 const kindOf = (rel) => (path.posix.extname(rel).toLowerCase() === '.md' ? 'markdown' : 'data');
@@ -171,7 +180,61 @@ function pageTitle(pageRel) {
 	return dir === '.' ? 'Home' : humanize(dir.split('/').pop());
 }
 
+// "citationBrown" → "Citation brown", "01-portraits" → "Portraits".
 export function humanize(name) {
-	const words = String(name).replace(/^_+/, '').replace(/[-_]+/g, ' ').trim();
+	const words = String(name)
+		.replace(/^[_\d]+[-_. ]*/, '')
+		.replace(/([a-z])([A-Z])/g, '$1 $2')
+		.replace(/[-_]+/g, ' ')
+		.trim()
+		.toLowerCase();
 	return words ? words[0].toUpperCase() + words.slice(1) : String(name);
+}
+
+// JSON Schema of a data file, looked up like VS Code's YAML extension so a
+// site already set up for VS Code needs nothing more. First match wins:
+//   1. a `# yaml-language-server: $schema=<path or URL>` line in the file
+//      (path relative to the file);
+//   2. `studio.schemas` in kirigami.yaml;
+//   3. `yaml.schemas` in the repo's .vscode/settings.json.
+// 2 and 3 share VS Code's format: { "<schema path or URL>": "<glob>" | [globs] },
+// schema paths relative to the repo root; a glob without "/" matches the file
+// name anywhere. Returns { path } (repo-relative), { url }, or null.
+function schemaResolver(treeDir, studio) {
+	const tables = [studio.schemas, vscodeYamlSchemas(treeDir)].filter((t) => t && typeof t === 'object');
+	const target = (value, baseDir) => (URL_RE.test(value)
+		? { url: value }
+		: { path: path.posix.normalize(path.posix.join(baseDir, toPosix(value).replace(/^\//, ''))) });
+
+	return (rel) => {
+		const head = fs.readFileSync(path.join(treeDir, rel), 'utf8').slice(0, 2048);
+		const modeline = /^#\s*yaml-language-server:\s*\$schema=(\S+)/m.exec(head);
+		if (modeline) return target(modeline[1], path.posix.dirname(rel));
+		for (const table of tables) {
+			for (const [schema, globs] of Object.entries(table)) {
+				const patterns = (Array.isArray(globs) ? globs : [globs]).map((g) => toPosix(g).replace(/^\//, ''));
+				const hit = patterns.some((p) => (p.includes('/') ? path.posix.matchesGlob(rel, p) : path.posix.matchesGlob(path.posix.basename(rel), p)));
+				if (hit) return target(schema, '.');
+			}
+		}
+		return null;
+	};
+}
+
+function vscodeYamlSchemas(treeDir) {
+	const file = path.join(treeDir, '.vscode', 'settings.json');
+	if (!fs.existsSync(file)) return null;
+	try {
+		return JSON.parse(stripJsonComments(fs.readFileSync(file, 'utf8')))['yaml.schemas'] ?? null;
+	} catch {
+		return null; // a broken settings file just means no schemas from it
+	}
+}
+
+// VS Code settings are JSONC: drop comments and trailing commas, leaving
+// strings alone.
+export function stripJsonComments(text) {
+	return text
+		.replace(/("(?:\\.|[^"\\])*")|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (match, string) => string ?? '')
+		.replace(/("(?:\\.|[^"\\])*")|,(\s*[}\]])/g, (match, string, close) => string ?? close);
 }

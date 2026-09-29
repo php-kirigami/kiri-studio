@@ -2,7 +2,7 @@
 // installed on, that the user can push to, and whose kirigami.yaml has a
 // `studio:` block. The token already limits what's visible to the App's
 // installations, so this is the intersection the plan describes.
-import * as yaml from 'js-yaml';
+import * as yaml from 'yaml';
 
 export async function listSites(gh) {
 	const repos = [];
@@ -15,9 +15,9 @@ export async function listSites(gh) {
 	const sites = await Promise.all(repos.map(async (repo) => {
 		let config;
 		try {
-			config = yaml.load(await gh.text(`/repos/${repo.full_name}/contents/kirigami.yaml`));
+			config = yaml.parse(await gh.text(`/repos/${repo.full_name}/contents/kirigami.yaml`));
 		} catch (error) {
-			if (error.status === 404 || error.name === 'YAMLException') return null;
+			if (error.status === 404 || error.name === 'YAMLParseError') return null;
 			throw error;
 		}
 		if (!config || typeof config !== 'object' || !('studio' in config)) return null;

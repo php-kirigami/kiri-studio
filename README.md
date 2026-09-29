@@ -33,8 +33,9 @@ Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 ## Status
 
 **Early development.** Signing in, finding your sites, keeping them in sync,
-and editing text (with changes saved automatically as drafts) work; forms,
-images, preview, and publishing come next. Nothing to install yet. The plan, the design choices, and the
+and editing text and data files (checked against their JSON Schema, with
+changes saved automatically as drafts) work; images, preview, and publishing
+come next. Nothing to install yet. The plan, the design choices, and the
 feasibility checks already done (Kirigami running inside Electron, publishing
 through the GitHub API, all three platforms) are in [docs/PLAN.md](docs/PLAN.md).
 
@@ -62,6 +63,7 @@ Environment variables for development and smoke tests:
 
 | Variable | Effect |
 |---|---|
+| `KIRI_STUDIO_LOCAL_SITE` | Show this local site folder instead of GitHub ones, as a client would see it (no sync). |
 | `KIRI_STUDIO_TOKEN` | Use this GitHub token instead of the saved sign-in (never saved). |
 | `KIRI_STUDIO_USER_DATA` | Keep settings, sign-in, and synced sites in this folder. |
 | `KIRI_STUDIO_LOCALE` | Force the UI language (`fr`, `en`). |

@@ -149,27 +149,36 @@ studio:
   exclude: [src/features/data/_stats.json]
   labels:
     src/features/data/_articles.yaml: Articles
-  forms:
-    src/features/data/_articles.yaml:     # inline fields…
-      title: text
-      date:  date
-      blurb: { type: textarea, label: Summary }
-    _data/team.yaml: _schemas/team.json   # …or a JSON Schema
+  schemas:                                # same format as VS Code's yaml.schemas
+    assets/schemas/articles.schema.json: _articles.yaml
 ```
 
 - **Automatic discovery.** `studio: {}` is enough: every `.md`/`.yaml`/
   `.yml`/`.json` file a page loads through a PHPDOC annotation (`@content
-  _about.md`, `@articles _articles.yaml`) is editable, labeled after the
-  page's `@title`. This fits how Kirigami sites already work: content lives in
-  data files next to the PHP templates. `exclude` hides some, `include` adds
-  files no page references (with `create: true` on a glob, the client can add
-  and delete files, e.g. blog posts), `labels` renames.
-- **Forms, never raw YAML.** A `forms` entry is either a field map (types:
-  text, textarea, markdown, number, boolean, date, url, email, image, select,
-  list) or a JSON Schema file for complex cases. Files without one get fields
-  guessed from their content (a date string → date picker, a URL → url field,
-  long text → textarea). Guessing must be good enough that most sites need no
-  `forms` at all.
+  _about.md`, `@articles _articles.yaml`) is editable, grouped under the
+  page's `@title` in the sidebar (home page first, files in annotation
+  order). This fits how Kirigami sites already work: content lives in data
+  files next to the PHP templates. `exclude` hides some, `include` adds files
+  no page references (with `create: true` on a glob, the client can add and
+  delete files, e.g. blog posts), `labels` renames.
+- **YAML/JSON edited as text, with a JSON Schema's help** (decided
+  2026-09-29, replacing the first idea of generated forms). The maintainer
+  already writes schemas for VS Code (e.g. humainhumain's
+  `assets/schemas/*.schema.json`); the client gets the same help in a
+  simpler editor: smart indentation (Enter indents after `key:`, aligns
+  under the key after `- key: value`, continues `- text` lists, ends a list
+  on an empty `- `; Tab/Shift+Tab by two spaces, never a tab), mistakes
+  underlined in plain words using the schema's own descriptions, a "3 things
+  to fix" summary that opens the list, field names suggested (Ctrl+Space or
+  as they type), and each field's description on hover. Forms may come back
+  later for simple files; they're not needed to ship.
+- **Schema association, like VS Code's YAML extension** so a site set up for
+  VS Code needs nothing more: a `# yaml-language-server: $schema=` line in
+  the file, else `studio.schemas`, else `yaml.schemas` in
+  `.vscode/settings.json` (JSONC). Schemas are paths in the repo or HTTPS
+  URLs. Validation runs in the main process (Ajv compiles schemas to
+  functions, which the renderer's CSP forbids); a broken or unreachable
+  schema only disables the help, with a warning in the app's log.
 - **Image manager** on `images` (default: `image.source`) and **file manager**
   on `files` (documents the site links to, published as is from under
   `kirigami.root`). In both, the client can create, rename, and delete
@@ -430,7 +439,15 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
 - The renderer is now bundled with esbuild (`npm run build`, run by
   `npm start`) into `build/renderer/`: CodeMirror's packages import each other
   by name, which a `file://` page with a strict CSP can't resolve.
-- Schema-driven YAML forms, with fields guessed when no `forms` entry exists.
+- ✅ YAML/JSON editor (`src/renderer/data-editor.js`, `yaml-indent.js`;
+  checks in `src/main/validate.js`) with schema help, as described in design
+  choice 3. Line endings are kept as found (both editors), so saving a CRLF
+  file doesn't rewrite every line. Checked on humainhumain (first test
+  client) through `KIRI_STUDIO_LOCAL_SITE`: its `.vscode/settings.json`
+  schemas are picked up with no extra config; it needs
+  `exclude: [src/_data/*/schema.json]` (JSON-LD files, not content).
+- The CSP allows inline styles and `data:` images: CodeMirror sets style
+  attributes and draws lint markers as data-URI SVGs. Scripts stay `'self'`.
 - Image and file managers (drop, downscale, subfolders, rename, delete with
   reference check).
 - Collections: creating and deleting files in `create: true` globs.

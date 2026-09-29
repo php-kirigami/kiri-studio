@@ -302,6 +302,72 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .md-quote { font-style: italic; color: var(--muted); }
 .md-mark { color: var(--muted); font-weight: 400; }
 
+/* YAML/JSON editor */
+
+.help {
+	display: flex;
+	align-items: baseline;
+	gap: 1rem;
+	color: var(--muted);
+	font-size: 0.9375rem;
+	margin: 0 0 0.75rem;
+}
+.help p { margin: 0; flex: 1; }
+.problems { padding: 0.25rem 0.75rem; font-size: 0.875rem; white-space: nowrap; border-color: var(--line); }
+.problems:empty { display: none; }
+.problems[data-count="0"] { color: var(--accent); cursor: default; }
+.problems[data-count="0"]::before { content: "✓ "; }
+.problems:not([data-count="0"]) { color: #c2412d; border-color: currentColor; }
+.problems:not([data-count="0"])::before { content: "● "; }
+
+.cm-panels { background: var(--panel) !important; color: var(--ink) !important; border-color: var(--line) !important; }
+.cm-panel.cm-panel-lint ul { max-height: 12rem; }
+.cm-panel.cm-panel-lint ul [aria-selected] { background: var(--accent-soft) !important; color: var(--ink) !important; }
+.cm-panel.cm-panel-lint button[name="close"] { color: var(--muted); }
+
+.data-surface {
+	background: var(--panel);
+	border: var(--hair) solid var(--line);
+	border-radius: var(--radius);
+	min-height: 60vh;
+}
+.data-surface:focus-within { border-color: var(--accent); }
+.data-surface .cm-editor { min-height: 60vh; }
+.data-surface .cm-editor.cm-focused { outline: none; }
+.data-surface .cm-scroller { font: 0.9375rem/1.7 ui-monospace, "Cascadia Code", Consolas, monospace; }
+.data-surface .cm-content { padding: 1rem 0; caret-color: var(--accent); outline: none; }
+.data-surface .cm-line { padding: 0 1.5rem 0 0.5rem; }
+.data-surface .cm-cursor { border-left-color: var(--accent); }
+.data-surface .cm-gutters { background: none; border: none; }
+.data-surface .cm-selectionBackground,
+.data-surface .cm-focused .cm-selectionBackground { background: var(--accent-soft) !important; }
+
+.dt-key { color: var(--accent); font-weight: 600; }
+.dt-string { color: var(--ink); }
+.dt-literal { color: var(--warn); }
+.dt-comment { color: var(--muted); font-style: italic; }
+.dt-punct { color: var(--muted); }
+
+/* Tooltips: lint messages, field descriptions, completions */
+.cm-tooltip {
+	background: var(--panel) !important;
+	color: var(--ink);
+	border: var(--hair) solid var(--line) !important;
+	border-radius: var(--radius);
+	box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 0.18);
+	font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+}
+.cm-tooltip-lint { padding: 0; }
+.cm-diagnostic { padding: 0.5rem 0.75rem; white-space: pre-line; max-width: 28rem; }
+.cm-diagnostic-error { border-left: 0.25rem solid #c2412d; }
+.cm-diagnostic-warning { border-left: 0.25rem solid var(--warn); }
+.schema-tip { padding: 0.5rem 0.75rem; max-width: 26rem; }
+.schema-tip p { margin: 0.25rem 0 0; color: var(--muted); }
+.cm-tooltip-autocomplete > ul > li { padding: 0.25rem 0.75rem !important; }
+.cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--accent-soft) !important; color: var(--ink) !important; }
+.cm-completionDetail { color: var(--muted); font-style: normal; margin-left: 0.75rem; font-size: 0.8125rem; }
+.cm-completionInfo { padding: 0.5rem 0.75rem !important; max-width: 22rem; }
+
 .statusbar {
 	grid-area: status;
 	display: flex;
@@ -328,3 +394,4 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .sync[data-state="downloading"]::before { animation: pulse 1s ease-in-out infinite alternate; }
 
 @keyframes pulse { to { opacity: 0.3; } }
+.cm-panel.cm-panel-lint ul:focus { outline: none; }
