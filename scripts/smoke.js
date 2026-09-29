@@ -24,9 +24,10 @@ const scenarios = [
 	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
-	{ name: 'sites', screen: 'sites', locale: 'fr', pick: true },
-	// Last run was an older version: the status bar says the app updated.
-	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr', prefs: { lastVersion: '0.0.1' } },
+	{ name: 'sites', screen: 'sites', locale: 'fr', pick: true, update: 'ready' },
+	// Last run was an older version: the status bar says the app updated, and
+	// that the next one is downloading.
+	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr', prefs: { lastVersion: '0.0.1' }, update: '42' },
 	// A change whose file someone else published since: the editor says so.
 	{ name: 'outdated', screen: 'entry', open: 'src/_home.md',
 		drafts: { 'src/_home.md': { base: '0'.repeat(64), text: '# Home\n\nMy version.\n' } } },
@@ -66,6 +67,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
 		...(scenario.pick && { KIRI_STUDIO_SMOKE_PICK: '1' }),
+		...(scenario.update && { KIRI_STUDIO_SMOKE_UPDATE: scenario.update }),
 	};
 	delete env.ELECTRON_RUN_AS_NODE;
 	delete env.KIRI_STUDIO_TOKEN;

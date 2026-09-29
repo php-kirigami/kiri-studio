@@ -20,14 +20,33 @@ export function canSelfUpdate() {
 	return false;
 }
 
-export function startUpdates() {
+// onStatus gets { state: 'downloading', version, percent }, then
+// { state: 'ready', version }, or null when a download failed (it is tried
+// again at the next check). The client sees it as one line, never a question.
+export function startUpdates(onStatus = () => {}) {
 	if (!canSelfUpdate()) return;
 	const { autoUpdater } = updater;
 	autoUpdater.autoDownload = true;
 	autoUpdater.autoInstallOnAppQuit = true;
 	autoUpdater.logger = console;
+	let version = null;
+	let ready = false;
+	autoUpdater.on('update-available', (info) => {
+		version = info.version;
+		if (!ready) onStatus({ state: 'downloading', version, percent: 0 });
+	});
+	autoUpdater.on('download-progress', (progress) => {
+		if (!ready) onStatus({ state: 'downloading', version, percent: Math.floor(progress.percent) });
+	});
+	autoUpdater.on('update-downloaded', (info) => {
+		ready = true;
+		onStatus({ state: 'ready', version: info.version });
+	});
 	// Offline or GitHub out of reach: try again next time, say nothing.
-	autoUpdater.on('error', (error) => console.warn(`Kiri Studio: update check failed: ${error.message}`));
+	autoUpdater.on('error', (error) => {
+		console.warn(`Kiri Studio: update check failed: ${error.message}`);
+		if (!ready) onStatus(null);
+	});
 	const check = () => autoUpdater.checkForUpdates().catch(() => {});
 	check();
 	setInterval(check, EVERY).unref();

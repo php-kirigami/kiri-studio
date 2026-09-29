@@ -331,7 +331,11 @@ now?" prompt they could get wrong.
 - **Silent cycle:** check at startup and every few hours, download in the
   background, install **when the app quits** (`autoInstallOnAppQuit`). The next
   launch is the new version. A small "Updated to x.y — what's new" note on
-  first launch, dismissable, is the only visible trace.
+  first launch, dismissable. Also one plain status line while it happens
+  (maintainer's request, 2026-09-29: silent looked like nothing happening):
+  "Downloading update x.y… 42%", then "Update x.y ready: it installs when
+  you close Kiri Studio", in the status bar and next to the version.
+  Never a question.
 - **Never interrupt work:** no install while there are unpublished drafts
   and the client is active. Drafts are persisted anyway, so an update can never
   lose them.

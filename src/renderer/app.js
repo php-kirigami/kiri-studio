@@ -130,7 +130,29 @@ window.addEventListener('focus', () => {
 	if (app.dataset.screen === 'sites') refreshSites?.();
 });
 
-const version = () => h('p.version', `Kiri Studio ${info.version}`);
+const version = () => h('p.version', `Kiri Studio ${info.version}`, updateLine());
+
+// A new version downloading or ready to install: one line wherever an
+// updateLine() sits (status bar, next to the version), kept current.
+let update = null;
+const updateLines = new Set();
+const updateText = () => {
+	if (update?.state === 'ready') return t('update.ready', { version: update.version });
+	if (update?.state === 'downloading') return t('update.downloading', { version: update.version, percent: update.percent });
+	return '';
+};
+function updateLine() {
+	const line = h('span.update', updateText());
+	updateLines.add(line);
+	return line;
+}
+studio.updates.onStatus((status) => {
+	update = status;
+	for (const line of updateLines) {
+		if (line.isConnected) line.textContent = updateText();
+		else updateLines.delete(line);
+	}
+});
 
 async function signOut() {
 	await leaveWorkspace();
@@ -157,7 +179,7 @@ async function openSite(user, site, sites) {
 		topbar(user, site),
 		sidebar,
 		main,
-		h('footer.statusbar', status, updatedNote(), changesLabel));
+		h('footer.statusbar', status, h('span.app-news', updatedNote(), updateLine()), changesLabel));
 	show('workspace-loading', layout);
 
 	let opened;
@@ -558,6 +580,7 @@ let info = {};
 
 async function start() {
 	info = await studio.info();
+	update = await studio.updates.status();
 	setLocale(info.locale);
 	show('loading', h('main.center', h('p.waiting', t('loading'))));
 	const auth = await studio.auth.status();

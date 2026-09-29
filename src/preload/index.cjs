@@ -12,6 +12,10 @@ contextBridge.exposeInMainWorld('studio', {
 	info: () => ipcRenderer.invoke('app:info'),
 	copy: (text) => ipcRenderer.invoke('app:copy', text),
 	openPreview: (url) => ipcRenderer.invoke('app:openPreview', url),
+	updates: {
+		status: () => ipcRenderer.invoke('update:status'),
+		onStatus: listen('update:status'),
+	},
 	auth: {
 		status: () => ipcRenderer.invoke('auth:status'),
 		start: () => ipcRenderer.invoke('auth:start'),

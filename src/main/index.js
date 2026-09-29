@@ -488,6 +488,15 @@ function createWindow() {
 // itself. Remembered right away, so the note shows on one launch only.
 let updatedFrom = null;
 
+// A new version being downloaded or ready to install (see updates.js); asked
+// for once by the renderer, then pushed through 'update:status'. Smoke tests
+// can fake one: KIRI_STUDIO_SMOKE_UPDATE=<percent> or "ready".
+const fakeUpdate = process.env.KIRI_STUDIO_SMOKE_UPDATE;
+let updateStatus = !fakeUpdate ? null
+	: fakeUpdate === 'ready' ? { state: 'ready', version: '9.9.9' }
+		: { state: 'downloading', version: '9.9.9', percent: Number(fakeUpdate) };
+ipcMain.handle('update:status', () => updateStatus);
+
 app.whenReady().then(() => {
 	const { lastVersion } = readPrefs();
 	if (lastVersion && lastVersion !== app.getVersion()) updatedFrom = lastVersion;
@@ -495,6 +504,6 @@ app.whenReady().then(() => {
 	protocol.handle('studio-media', serveMedia);
 	createWindow();
 	if (process.env.KIRI_STUDIO_SCREENSHOT) setTimeout(() => app.exit(1), 120_000);
-	else startUpdates();
+	else startUpdates((status) => { updateStatus = status; send('update:status', status); });
 });
 app.on('window-all-closed', () => app.quit());

@@ -173,6 +173,8 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .site-list + .actions { margin-top: 1.25rem; }
 .version { font-size: 0.75rem; color: var(--muted); margin: 1.5rem 0 0; }
 .menu .version { margin: 0.25rem 0 0; }
+.version .update:not(:empty)::before { content: " · "; }
+.app-news { display: flex; gap: 1.5em; }
 .menu {
 	position: absolute;
 	right: 0;
