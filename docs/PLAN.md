@@ -10,31 +10,30 @@ everything that doesn't need publishing first, publish when it blocks).
 site list, tarball sync, discovery grouped by page, Markdown editor, YAML/JSON
 editor with JSON Schema help and smart indentation, autosaved drafts (text,
 binary, deletions), image/document managers (subfolders, downscale, viewer,
-`{% img-asset %}` copy/insert), collections, live preview, CI on 3 OSes
-(unit + `npm run smoke`, 6 scenarios on `test/fixtures/site`).
+`{% img-asset %}` copy/insert), collections, live preview, multi-editor
+awareness, CI on 3 OSes (unit + `npm run smoke`, 7 scenarios on
+`test/fixtures/site`).
 
-**In progress (last session ended here):**
-- Live preview (`src/main/preview.js`, `preview-worker.js`, `deps.js`,
-  `src/renderer/preview-pane.js`) works locally on the sandbox and the
-  fixture; the smoke `preview` scenario checks the typed text reaches the
-  generated HTML. Committed (`aac56b8`) with the fixture fixes (data moved
-  under `src/`, `prepros: {}`); the Test workflow is green on all 3 OSes.
+**Multi-editor awareness** (last session): the renderer calls `site:sync`
+every 3 minutes and on window focus (if the last check is older than 30 s).
+When the branch moved, the main process drops drafts the synced copy caught
+up with (`drafts.tidy()`), rebuilds the scope, clears the schemas, and
+restarts a running preview (`preview.resync()`, new URL sent through
+`preview:status`). The renderer rebuilds the sidebar (keeping the
+selection), reloads an untouched open file, and shows "Someone else
+published this page since you started…" on a changed file whose `base` no
+longer matches (`drafts.outdated()`, also returned by `site:read`). Unit
+tests and the smoke `outdated` scenario cover the drafts side and the
+notice; **the real GitHub path is untested**: try it once on the sandbox
+(edit a file on github.com while the app is open, refocus the window).
 
 **Next, in order:**
-1. **Multi-editor awareness** (the maintainer's request): several people may
-   edit one site at once, usually different files. Background sync every few
-   minutes and on window focus; when the branch moved: refresh the synced
-   copy, the sidebar, and the preview copy (restart the preview worker),
-   reload the open editor if its file has no draft; if a file with a draft
-   changed remotely (draft `base` ≠ new synced hash), show a plain notice
-   ("Someone else published this page since you started; your version will
-   replace it when you publish"), no question asked. Needs `site:sync` IPC
-   and a preview `resync()`.
-2. **Phase 6 without certificates**: electron-builder config, unsigned
+1. **Phase 6 without certificates**: electron-builder config, unsigned
    installers from a release workflow, electron-updater wiring.
-3. Polish: loading indicator on first site list, offline fallback test,
-   clicking through the real sign-in once.
-4. Phase 4 (publish) when needed.
+2. Polish: loading indicator on first site list, offline fallback test,
+   clicking through the real sign-in once, the sandbox check above.
+3. Phase 4 (publish) when needed. After a publish, a sync + `drafts.tidy()`
+   clears what was published.
 
 **Known gaps / gotchas:**
 - The preview runs the site's own Kirigami (e.g. published 3.0.2), which

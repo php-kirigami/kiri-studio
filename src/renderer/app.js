@@ -13,6 +13,9 @@ const app = document.getElementById('app');
 
 let ws = null; // the open workspace, see openSite()
 
+const SYNC_EVERY = 3 * 60_000;         // background check for a new version
+const SYNC_ON_FOCUS_AFTER = 30_000;    // back to the window: check if older than this
+
 function show(screen, ...content) {
 	app.dataset.screen = screen;
 	app.replaceChildren(...content);
@@ -66,6 +69,7 @@ studio.auth.onChange((state) => {
 
 // Leaving the workspace: save what's being typed first.
 async function leaveWorkspace() {
+	ws?.stopSync?.();
 	await ws?.close();
 	if (ws?.preview) {
 		ws.preview.close();
@@ -154,10 +158,13 @@ async function openSite(user, site, sites) {
 		main,
 		sidebar,
 		changes: new Set(opened.changes),
+		outdated: new Set(), // changed files someone else published since (after a sync)
 		closeView: null, // flushes and tears down the open editor, if any
+		view: null,      // the open editor or media manager: { synced() } after a sync
 		async close() {
 			await this.closeView?.();
 			this.closeView = null;
+			this.view = null;
 		},
 		setChanges(paths) {
 			this.changes = new Set(paths);
@@ -183,8 +190,7 @@ async function openSite(user, site, sites) {
 
 	// A collection lists its files live (new and deleted ones included); when
 	// it allows it, "+" creates a file from a title and opens it.
-	ws.collections = new Map();
-	const loading = [];
+	let loading = [];
 	const collectionSection = (collection) => {
 		const list = h('ul');
 		const render = async (open) => {
@@ -216,31 +222,64 @@ async function openSite(user, site, sites) {
 		button.addEventListener('click', () => select(button, () => showMedia(ws, { root, title, kind })));
 		return h('li', button);
 	};
-	const mediaGroup = [
-		mediaSection(t('ws.images'), opened.scope.images?.path, 'images'),
-		mediaSection(t('ws.files'), opened.scope.files?.path, 'files'),
-	].filter(Boolean);
+	// Built on open and again whenever a sync brings a new version of the
+	// site; the highlighted entry stays highlighted.
+	async function renderSidebar(scope) {
+		const selected = sidebar.querySelector('[aria-current]');
+		const key = selected && (selected.dataset.path ? `[data-path="${CSS.escape(selected.dataset.path)}"]` : `[data-media="${selected.dataset.media}"]`);
+		ws.collections = new Map();
+		loading = [];
+		const mediaGroup = [
+			mediaSection(t('ws.images'), scope.images?.path, 'images'),
+			mediaSection(t('ws.files'), scope.files?.path, 'files'),
+		].filter(Boolean);
 
-	const { scope } = opened;
-	// Content grouped by the page it belongs to, in discovery order.
-	const groups = new Map();
-	for (const entry of scope.content) {
-		const name = entry.group ?? t('ws.other');
-		if (!groups.has(name)) groups.set(name, []);
-		groups.get(name).push(entry);
+		// Content grouped by the page it belongs to, in discovery order.
+		const groups = new Map();
+		for (const entry of scope.content) {
+			const name = entry.group ?? t('ws.other');
+			if (!groups.has(name)) groups.set(name, []);
+			groups.get(name).push(entry);
+		}
+
+		sidebar.replaceChildren(...[
+			[...groups].map(([name, entries]) => h('section.group',
+				h('h2', name),
+				h('ul', entries.map((entry) => h('li', entryButton(entry)))))),
+			scope.collections.map((collection) => collectionSection(collection)),
+			mediaGroup.length && h('section.group', h('h2', t('ws.media')), h('ul', mediaGroup)),
+		].flat().filter(Boolean));
+		await Promise.all(loading);
+		if (key) sidebar.querySelector(key)?.setAttribute('aria-current', 'true');
+		ws.setChanges([...ws.changes]);
 	}
 
-	sidebar.replaceChildren(...[
-		[...groups].map(([name, entries]) => h('section.group',
-			h('h2', name),
-			h('ul', entries.map((entry) => h('li', entryButton(entry)))))),
-		scope.collections.map((collection) => collectionSection(collection)),
-		mediaGroup.length && h('section.group', h('h2', t('ws.media')), h('ul', mediaGroup)),
-	].flat().filter(Boolean));
-	ws.setChanges(opened.changes);
-
 	main.replaceChildren(h('p.empty', t('ws.empty')));
-	await Promise.all(loading);
+	await renderSidebar(opened.scope);
+
+	// Someone else may publish while the client works: look for a new version
+	// every few minutes and when the window comes back to the front.
+	const mine = ws;
+	let lastSync = Date.now();
+	async function syncNow() {
+		lastSync = Date.now();
+		const result = await studio.site.sync();
+		if (ws !== mine) return;
+		setStatus(result.status);
+		if (!result.changed) return;
+		ws.scope = result.scope;
+		ws.outdated = new Set(result.outdated);
+		ws.setChanges(result.changes);
+		await renderSidebar(result.scope);
+		await ws.view?.synced();
+	}
+	const timer = setInterval(syncNow, SYNC_EVERY);
+	const onFocus = () => { if (Date.now() - lastSync > SYNC_ON_FOCUS_AFTER) syncNow(); };
+	window.addEventListener('focus', onFocus);
+	ws.stopSync = () => {
+		clearInterval(timer);
+		window.removeEventListener('focus', onFocus);
+	};
 
 	// Live preview, next to the editor; its button sits in the top bar.
 	ws.preview = createPreviewPane(ws, layout);
@@ -266,6 +305,7 @@ async function openSite(user, site, sites) {
 			studio.ui.settled('entry');
 		}
 	} else if (info.smokeOpen) {
+		const { scope } = opened;
 		const entry = [...scope.content, ...scope.collections.flatMap((c) => c.files)].find((e) => e.path === info.smokeOpen);
 		const button = sidebar.querySelector(`[data-path="${CSS.escape(info.smokeOpen)}"]`);
 		if (entry && button) {
@@ -323,6 +363,7 @@ async function showEntry(entry) {
 			pending = null;
 			editor.destroy();
 			ws.closeView = null;
+			ws.view = null;
 			ws.setChanges((await studio.collections.delete(entry.path)).changes);
 			ws.main.replaceChildren(h('p.empty', t('ws.empty')));
 			collection.render();
@@ -400,6 +441,28 @@ async function showEntry(entry) {
 		await flush();
 		editor.destroy();
 	};
+	// After a sync brought a new version of the site: an untouched file shows
+	// the new text; one the client changed keeps their text, and says so if
+	// someone else published it in the meantime (theirs wins on publish).
+	const outdated = h('p.notice.outdated', { hidden: !file.outdated }, t('editor.outdated'));
+	const untouched = () => pending === null && !ws.changes.has(entry.path) && editor.view.state.doc.toString() === file.text;
+	const view = {
+		async synced() {
+			if (!untouched()) {
+				outdated.hidden = !ws.outdated.has(entry.path);
+				return;
+			}
+			const stillThere = ws.sidebar.querySelector(`[data-path="${CSS.escape(entry.path)}"]`);
+			const fresh = stillThere && await studio.site.read(entry.path).catch(() => null);
+			if (ws.view !== view || !untouched() || fresh?.text === file.text) return;
+			editor.destroy();
+			ws.closeView = null;
+			ws.view = null;
+			if (fresh) showEntry(entry);
+			else main.replaceChildren(h('p.empty', t('ws.empty')));
+		},
+	};
+	ws.view = view;
 	ws.showProblems = editor.showProblems;
 	ws.smokeType = async (text) => {
 		const { view } = editor;
@@ -410,6 +473,7 @@ async function showEntry(entry) {
 	const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
 	main.replaceChildren(...[
 		h('div.entry-head', h('h1', entry.label), saveState, discard, remove),
+		outdated,
 		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),

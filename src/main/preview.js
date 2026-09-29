@@ -77,7 +77,7 @@ export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus }) 
 	}
 
 	async function start() {
-		if (child) return starting;
+		if (starting) return starting;
 		starting = (async () => {
 			onStatus({ state: 'preparing' });
 			rebuild();
@@ -123,18 +123,34 @@ export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus }) 
 		try {
 			return await starting;
 		} catch (error) {
+			onStatus({ state: 'error', code: error.code ?? 'failed' });
 			stop();
 			throw error;
 		}
 	}
 
+	// Resolves once the worker is gone, so its files can be removed.
 	function stop() {
-		child?.postMessage({ type: 'stop' });
 		const exiting = child;
-		setTimeout(() => exiting?.kill(), 2000);
 		child = null;
 		starting = null;
+		if (!exiting) return Promise.resolve();
+		return new Promise((resolve) => {
+			const timer = setTimeout(() => { exiting.kill(); resolve(); }, 2000);
+			exiting.once('exit', () => { clearTimeout(timer); resolve(); });
+			exiting.postMessage({ type: 'stop' });
+		});
 	}
 
-	return { start, stop, refresh, get running() { return !!child; } };
+	// The synced copy changed: a running preview starts over from it (its
+	// dependencies may have changed too). It reports its new address through
+	// onStatus({ state: 'ready', url }).
+	async function resync() {
+		if (!starting) return;
+		await starting.catch(() => {});
+		await stop();
+		await start().catch(() => {});
+	}
+
+	return { start, stop, resync, refresh, get running() { return !!child; } };
 }

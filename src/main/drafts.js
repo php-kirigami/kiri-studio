@@ -85,6 +85,32 @@ export function createDrafts(siteDir, treeDir) {
 			writeIndex(index);
 			fs.rmSync(path.join(filesDir, rel), { force: true });
 		},
+
+		// Changes whose synced file moved since the edit started: someone else
+		// published that file (or created one at the same path) in the meantime.
+		outdated() {
+			return Object.entries(readIndex())
+				.filter(([rel, meta]) => (meta.base ?? null) !== (synced(rel) && hash(synced(rel))))
+				.map(([rel]) => rel);
+		},
+
+		// After a sync: drops the changes the synced copy now matches (the same
+		// edit or deletion published from elsewhere). Returns their paths.
+		tidy() {
+			const index = readIndex();
+			const dropped = Object.entries(index).filter(([rel, meta]) => {
+				const original = synced(rel);
+				if (meta.deleted) return original === null;
+				const draft = path.join(filesDir, rel);
+				return original !== null && fs.existsSync(draft) && original.equals(fs.readFileSync(draft));
+			}).map(([rel]) => rel);
+			for (const rel of dropped) {
+				delete index[rel];
+				fs.rmSync(path.join(filesDir, rel), { force: true });
+			}
+			if (dropped.length) writeIndex(index);
+			return dropped;
+		},
 	};
 }
 

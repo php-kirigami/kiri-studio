@@ -52,3 +52,30 @@ test('a new file has a null base', (t) => {
 	assert.equal(drafts.list()[0].base, null);
 	assert.equal(drafts.read('src/blog/new-post.md').toString(), '# New');
 });
+
+test('a change is outdated once someone else publishes its file', (t) => {
+	const { treeDir, drafts } = setup(t);
+	drafts.save('src/about.md', 'mine');
+	drafts.save('src/blog/new-post.md', '# New');
+	assert.deepEqual(drafts.outdated(), []);
+
+	fs.writeFileSync(path.join(treeDir, 'src', 'about.md'), '# About them\n');
+	fs.mkdirSync(path.join(treeDir, 'src', 'blog'));
+	fs.writeFileSync(path.join(treeDir, 'src', 'blog', 'new-post.md'), '# Theirs');
+	assert.deepEqual(drafts.outdated().sort(), ['src/about.md', 'src/blog/new-post.md']);
+	assert.equal(drafts.read('src/about.md').toString(), 'mine', 'the client keeps their version');
+});
+
+test('tidy drops the changes the synced copy caught up with', (t) => {
+	const { treeDir, drafts } = setup(t);
+	fs.writeFileSync(path.join(treeDir, 'src', 'contact.md'), '# Contact\n');
+	drafts.save('src/about.md', 'same edit');
+	drafts.save('src/blog/post.md', 'still mine');
+	drafts.remove('src/contact.md');
+
+	fs.writeFileSync(path.join(treeDir, 'src', 'about.md'), 'same edit');
+	fs.rmSync(path.join(treeDir, 'src', 'contact.md'));
+	assert.deepEqual(drafts.tidy().sort(), ['src/about.md', 'src/contact.md']);
+	assert.deepEqual(drafts.list().map((d) => d.path), ['src/blog/post.md']);
+	assert.deepEqual(drafts.tidy(), []);
+});

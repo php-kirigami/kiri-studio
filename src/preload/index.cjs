@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('studio', {
 	site: {
 		open: (site) => ipcRenderer.invoke('site:open', site),
 		read: (path) => ipcRenderer.invoke('site:read', path),
+		sync: () => ipcRenderer.invoke('site:sync'),
 		openLive: () => ipcRenderer.invoke('site:openLive'),
 		onSync: listen('sync:status'),
 	},

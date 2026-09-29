@@ -290,6 +290,9 @@ export async function showMedia(ws, media, folderPath = media.root) {
 	});
 
 	main.replaceChildren(drop);
+	// After a sync brought a new version of the site: show its files.
+	const view = { synced: () => ws.view === view && refresh() };
+	ws.view = view;
 	ws.smokeAdd = addFiles;
 	ws.smokeView = () => images.length && viewImage(ws, images, 0);
 }

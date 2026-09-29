@@ -57,9 +57,19 @@ export function createPreviewPane(ws, workspace) {
 			default: return t('preview.stopped');
 		}
 	};
-	const stopListening = studio.preview.onStatus((s) => setStatus(s.state, describe(s)));
-
 	const go = () => { if (url) frame.src = url + page; };
+	const known = ['noLockfile', 'offline', 'badLockfile', 'build', 'integrity'];
+	const failure = (code) => t(`preview.error.${known.includes(code) ? code : 'other'}`);
+
+	const stopListening = studio.preview.onStatus((s) => {
+		if (s.state === 'error' && s.code) return setStatus('error', failure(s.code));
+		setStatus(s.state, describe(s));
+		// Restarted after a sync: same pages, new address.
+		if (s.url && url && s.url !== url) {
+			url = s.url;
+			go();
+		}
+	});
 
 	async function start() {
 		if (url || starting) return;
@@ -71,8 +81,7 @@ export function createPreviewPane(ws, workspace) {
 			url = result.url;
 			go();
 		} else {
-			const known = ['noLockfile', 'offline', 'badLockfile', 'build', 'integrity'];
-			setStatus('error', t(`preview.error.${known.includes(result.error) ? result.error : 'other'}`));
+			setStatus('error', failure(result.error));
 		}
 	}
 

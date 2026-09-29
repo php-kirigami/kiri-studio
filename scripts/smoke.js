@@ -23,6 +23,9 @@ const scenarios = [
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
 	{ name: 'workspace-fr', screen: 'workspace', locale: 'fr' },
+	// A change whose file someone else published since: the editor says so.
+	{ name: 'outdated', screen: 'entry', open: 'src/_home.md',
+		drafts: { 'src/_home.md': { base: '0'.repeat(64), text: '# Home\n\nMy version.\n' } } },
 	// Installs the fixture's dependencies from its lockfile, then renders it.
 	// The typed text must reach the page Kirigami generated in the preview copy.
 	{ name: 'preview', screen: 'entry', open: 'src/_home.md', preview: true, type: '\nTyped in Kiri Studio.\n',
@@ -33,6 +36,17 @@ let failed = 0;
 for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'kiri-studio-smoke-'));
 	const screenshot = path.join(outDir, `${scenario.name}.png`);
+	// Unpublished changes to start with, as drafts.js stores them.
+	if (scenario.drafts) {
+		const dir = path.join(userData, 'sites', 'local__site', 'drafts');
+		const index = {};
+		for (const [rel, { base, text }] of Object.entries(scenario.drafts)) {
+			fs.mkdirSync(path.dirname(path.join(dir, 'files', rel)), { recursive: true });
+			fs.writeFileSync(path.join(dir, 'files', rel), text);
+			index[rel] = { base, updatedAt: new Date().toISOString() };
+		}
+		fs.writeFileSync(path.join(dir, 'index.json'), JSON.stringify(index));
+	}
 	fs.rmSync(screenshot, { force: true });
 	const env = {
 		...process.env,

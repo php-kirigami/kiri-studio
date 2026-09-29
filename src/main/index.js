@@ -140,6 +140,21 @@ ipcMain.handle('sites:list', async () => {
 	return { sites, lastSite: readPrefs().lastSite ?? null };
 });
 
+// What the client may edit in the synced copy, and the helpers built on it.
+// Rebuilt whenever the synced copy changes.
+function loadScope(treeDir, drafts) {
+	const scope = buildScope(treeDir);
+	for (const collection of scope.collections) collection.creatable = collection.create && !!creationTarget(collection.pattern);
+	const excluded = (rel) => isExcluded(scope.exclude, rel);
+	return {
+		scope,
+		media: createMedia({ treeDir, drafts, isExcluded: excluded }),
+		collections: createCollections({ treeDir, drafts, scope, isExcluded: excluded }),
+		// Schema of any data file, including one the client just created.
+		schemaFor: schemaResolver(treeDir, readStudioConfig(treeDir).studio ?? {}, (rel) => drafts.read(rel)),
+	};
+}
+
 // Opens a site: syncs it, then returns its scope. When GitHub can't be
 // reached, falls back to the last synced copy.
 ipcMain.handle('site:open', async (_event, site) => {
@@ -152,10 +167,8 @@ ipcMain.handle('site:open', async (_event, site) => {
 		if (!fs.existsSync(treeDir)) throw error;
 		status = 'offline';
 	}
-	const scope = buildScope(treeDir);
-	for (const collection of scope.collections) collection.creatable = collection.create && !!creationTarget(collection.pattern);
 	const drafts = createDrafts(dir, treeDir);
-	const excluded = (rel) => isExcluded(scope.exclude, rel);
+	if (!site.local) drafts.tidy();
 	current?.preview.stop();
 	const preview = createPreview({
 		siteDir: dir,
@@ -175,17 +188,7 @@ ipcMain.handle('site:open', async (_event, site) => {
 			return result;
 		};
 	}
-	current = {
-		site,
-		treeDir,
-		scope,
-		drafts,
-		preview,
-		media: createMedia({ treeDir, drafts, isExcluded: excluded }),
-		collections: createCollections({ treeDir, drafts, scope, isExcluded: excluded }),
-		// Schema of any data file, including one the client just created.
-		schemaFor: schemaResolver(treeDir, readStudioConfig(treeDir).studio ?? {}, (rel) => drafts.read(rel)),
-	};
+	current = { site, dir, treeDir, drafts, preview, ...loadScope(treeDir, drafts) };
 	schemas.clear();
 	writePrefs({ lastSite: site.fullName });
 	return {
@@ -197,6 +200,37 @@ ipcMain.handle('site:open', async (_event, site) => {
 	};
 });
 
+// Background sync of the open site (the renderer calls it every few minutes
+// and when the window regains focus): several people may edit one site. When
+// the branch moved, the scope, the schemas, and the preview follow; the
+// client's changes stay as they are. Never throws: GitHub out of reach just
+// means "offline" until the next try.
+let syncing = null;
+ipcMain.handle('site:sync', () => (syncing ??= resync().finally(() => { syncing = null; })));
+
+async function resync() {
+	const open = current;
+	if (!open || open.site.local) return { status: 'ready', changed: false };
+	let result;
+	try {
+		result = await syncSite(gh, open.site, open.dir);
+	} catch {
+		return { status: 'offline', changed: false };
+	}
+	if (open !== current || !result.changed) return { status: 'ready', changed: false };
+	open.drafts.tidy();
+	Object.assign(open, loadScope(open.treeDir, open.drafts));
+	schemas.clear();
+	open.preview.resync();
+	return {
+		status: 'ready',
+		changed: true,
+		scope: open.scope,
+		changes: changes(),
+		outdated: open.drafts.outdated(),
+	};
+}
+
 const editable = (rel) => {
 	if (!current || typeof rel !== 'string') throw new Error('Not editable.');
 	if (!inScope(current.scope, rel) && !current.collections.contains(rel)) throw new Error('Not editable.');
@@ -204,9 +238,11 @@ const editable = (rel) => {
 };
 
 // The client's current text of a file: their draft if any, else the synced one.
+// `outdated`: someone else published this file since the client's change began.
 ipcMain.handle('site:read', (_event, rel) => ({
 	text: current.drafts.read(editable(rel)).toString('utf8'),
 	changed: current.drafts.has(rel),
+	outdated: current.drafts.outdated().includes(rel),
 }));
 
 // Autosave target. Returns the paths with unpublished changes.
