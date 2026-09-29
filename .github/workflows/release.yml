@@ -17,7 +17,7 @@ jobs:
   draft:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
       - name: Tag matches package.json
         run: |
@@ -48,9 +48,9 @@ jobs:
             app: dist/linux-unpacked/kiri-studio
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -78,7 +78,7 @@ jobs:
 
       - name: Keep the screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: release-smoke-${{ matrix.os }}
           path: smoke-${{ matrix.os }}
