@@ -20,23 +20,39 @@ export function createClient(token) {
 		'User-Agent': 'kiri-studio',
 	};
 
-	async function request(pathOrUrl, { accept } = {}) {
+	async function request(pathOrUrl, { accept, method = 'GET', body } = {}) {
 		const url = pathOrUrl.startsWith('https://') ? pathOrUrl : API + pathOrUrl;
 		// Smoke tests: behave as if there were no internet.
 		if (process.env.KIRI_STUDIO_OFFLINE) throw new GitHubError(`Offline (test) on ${url}`, 0);
 		let res;
 		try {
-			res = await fetch(url, { headers: { ...headers, ...(accept && { Accept: accept }) } });
+			res = await fetch(url, {
+				method,
+				headers: { ...headers, ...(accept && { Accept: accept }), ...(body !== undefined && { 'Content-Type': 'application/json' }) },
+				body: body === undefined ? undefined : JSON.stringify(body),
+			});
 		} catch (error) {
 			throw new GitHubError(`Network error on ${url}: ${error.message}`, 0);
 		}
-		if (!res.ok) throw new GitHubError(`GitHub answered ${res.status} on ${url}`, res.status);
+		if (!res.ok) {
+			// GitHub explains a refusal in the body ("Update is not a fast forward").
+			const detail = await res.json().then((b) => b?.message, () => null);
+			throw new GitHubError(`GitHub answered ${res.status} on ${url}${detail ? `: ${detail}` : ''}`, res.status);
+		}
 		return res;
 	}
 
 	return {
+		// The token itself, for Git LFS, which speaks to another host.
+		token,
+
 		async json(path) {
 			return (await request(path)).json();
+		},
+
+		// POST / PATCH / PUT with a JSON body; resolves to the JSON answer.
+		async send(method, path, body) {
+			return (await request(path, { method, body })).json();
 		},
 
 		// Raw file contents by default; pass another media type for e.g. a bare SHA.

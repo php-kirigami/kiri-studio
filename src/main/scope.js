@@ -16,6 +16,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import * as yaml from 'yaml';
+import { lfsPatterns } from '../shared/lfs.js';
 
 const DATA_EXTS = new Set(['.md', '.yaml', '.yml', '.json']);
 const URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
@@ -124,11 +125,18 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),
 		files: studio.files ? folderTree(treeDir, toPosix(studio.files), excluded) : null,
 		exclude,
+		// Paths kept in Git LFS (`filter=lfs` in .gitattributes): their bytes
+		// are published to LFS, and they may be bigger than other files.
+		lfs: lfsPatterns(readOptional(path.join(treeDir, '.gitattributes'))),
 		// For the {% img-asset <path> <width> %} code: paths are relative to image.source.
 		root,
 		imageSource: toPosix(config.image?.source ?? 'assets/images'),
 		imageWidth: Number.isInteger(studio.imageWidth) && studio.imageWidth > 0 ? studio.imageWidth : 800,
 	};
+}
+
+function readOptional(file) {
+	try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
 }
 
 // A path matches an `exclude` pattern, or lies inside a folder that does.

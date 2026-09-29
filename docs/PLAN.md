@@ -2,9 +2,27 @@
 
 ## Where we are (handoff, 2026-09-29)
 
-Read this first when resuming. Phases 0–3 are done; phase 5 (live preview)
-works; phase 4 (publish) is deliberately not started (maintainer's call: do
-everything that doesn't need publishing first, publish when it blocks).
+Read this first when resuming. Phases 0–5 are built; phase 6 waits for
+certificates (signing is postponed, maintainer's call 2026-09-29).
+
+**Publish (phase 4, built 2026-09-29, unreleased).** `src/main/publish.js`:
+sync, one blob per changed file, one tree on the head's tree, one commit,
+`PATCH` the ref with `force: false`; a refused ref ("not a fast forward")
+syncs again and rebuilds on the new head, up to 4 times, client's version
+wins. Paths matched by `.gitattributes` `filter=lfs` (read from the synced
+copy, `src/shared/lfs.js`) upload their bytes through GitHub's LFS batch API
+(`src/main/lfs.js`) and commit a pointer; the bytes stay in `<siteDir>/lfs/`
+so the app can show the file (the synced copy only has pointers, served as
+the real file by `studio-media:`). LFS paths may be up to 100 MB, others
+25 MB. `src/main/deploy.js` follows the Actions run of the commit (online /
+build failed / just published). Commit message built from the page labels.
+Unit tests use an in-memory Git Data API; `scripts/publish-live.mjs` (manual,
+`GH_TOKEN=$(gh auth token) node scripts/publish-live.mjs <owner/repo>`) runs
+the real thing on a throwaway branch: text, image, deletion and an LFS PDF
+passed against `php-kirigami/kiri-studio-sandbox`. **Not yet checked with the
+App's own user token** (a `ghu_` token, LFS batch included): try one publish
+from the app on humainhumain (`studio.files` = the PDF reports in LFS,
+`studio.images` = the SVG logos).
 
 **Done** (see the phase sections below for detail): sign-in,
 site list, tarball sync, discovery grouped by page, Markdown editor, YAML/JSON
@@ -52,13 +70,14 @@ screens and in the account menu, "Add a website", and any repo with a
 step).
 
 **Next, in order:**
+0. Publish once from the app on humainhumain (see above).
 1. Checks that need the maintainer (a real GitHub account): clicking
    through the real sign-in once, the sandbox sync check above, the real
    site list (repos without `studio:`). Offline start is done and covered
    (smoke `offline`, `KIRI_STUDIO_OFFLINE`): the last user and site list are
    kept in preferences, the last synced copy opens.
-2. Phase 4 (publish) when needed. After a publish, a sync + `drafts.tidy()`
-   clears what was published.
+2. More than one images/documents folder per site (`studio.images` is one
+   folder today).
 3. Signing (Apple Developer ID, a Windows signing service) when clients
    arrive: then add the mac `zip` target and turn macOS updates on in
    `updates.js`.
@@ -165,7 +184,7 @@ app talks to the GitHub API directly:
 Why: no Git binary to ship, no repo history on the client's disk, no merge
 machinery. The client edits a handful of files; a full Git client is overkill.
 
-**No Git LFS (decided 2026-09-29).** The images Kiri Studio commits are
+**No Git LFS *by default* (decided 2026-09-29; amended the same day).** The images Kiri Studio commits are
 already downscaled (design choice 5), so they stay small and plain Git holds
 them fine. LFS would cost more than it saves:
 
@@ -177,10 +196,11 @@ them fine. LFS would cost more than it saves:
   second publish path, and one more thing to go wrong for the client.
 
 LFS only pays off for large binaries (video, raw files), which a client-editable
-site shouldn't hold anyway; video goes to YouTube/Vimeo and is embedded. If a
-repo already tracks editable paths with LFS (`.gitattributes`), Kiri Studio
-refuses them with a clear maintainer-facing message rather than writing raw
-files where pointers are expected.
+site shouldn't hold anyway; video goes to YouTube/Vimeo and is embedded. A repo that already keeps editable paths in LFS
+(`.gitattributes`; humainhumain's PDF reports) is supported instead: Kiri
+Studio uploads those files through the LFS batch API and commits the
+pointer, never a raw file where a pointer is expected. New sites should still
+keep media out of LFS.
 
 ### 2. Auth: one "Kiri Studio" GitHub App, owned by `php-kirigami`
 
@@ -566,7 +586,7 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
   schema, a creatable blog, images, documents) for tests and local runs;
   `KIRI_STUDIO_LOCAL_SITE` opens it without a GitHub account.
 
-### Phase 4 — Publish
+### Phase 4 — Publish (built, see the handoff)
 
 - `createCommitOnBranch`, message generated from the changed labels.
 - Concurrent change: re-sync, re-apply the drafts, and retry silently. If the

@@ -86,6 +86,21 @@ export function createDrafts(siteDir, treeDir) {
 			fs.rmSync(path.join(filesDir, rel), { force: true });
 		},
 
+		// After a publish: drops the changes that went out. A change the client
+		// made again while publishing (a newer `updatedAt`) stays.
+		forget(changes) {
+			const index = readIndex();
+			let dropped = 0;
+			for (const change of changes) {
+				if (index[change.path]?.updatedAt !== change.updatedAt) continue;
+				delete index[change.path];
+				fs.rmSync(path.join(filesDir, change.path), { force: true });
+				dropped++;
+			}
+			if (dropped) writeIndex(index);
+			return dropped;
+		},
+
 		// Changes whose synced file moved since the edit started: someone else
 		// published that file (or created one at the same path) in the meantime.
 		outdated() {

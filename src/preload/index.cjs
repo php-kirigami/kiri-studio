@@ -56,6 +56,10 @@ contextBridge.exposeInMainWorld('studio', {
 		delete: (path) => ipcRenderer.invoke('media:delete', path),
 		usage: (path) => ipcRenderer.invoke('media:usage', path),
 	},
+	publish: {
+		run: () => ipcRenderer.invoke('publish:run'),
+		onStatus: listen('publish:status'),
+	},
 	drafts: {
 		save: (path, text) => ipcRenderer.invoke('drafts:save', path, text),
 		discard: (path) => ipcRenderer.invoke('drafts:discard', path),

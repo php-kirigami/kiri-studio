@@ -6,8 +6,10 @@
 // dot files keep folders alive but are never listed.
 import fs from 'node:fs';
 import path from 'node:path';
+import { MAX_FILE_SIZE } from '../shared/lfs.js';
+import { parsePointer } from './lfs.js';
 
-export const MAX_FILE_SIZE = 25 * 1024 * 1024;
+export { MAX_FILE_SIZE };
 const KEEP = '.gitkeep';
 
 // "Été 2026 (1).JPG" → "ete-2026-1.jpg": what survives every file system and URL.
@@ -21,7 +23,8 @@ export function safeName(name, { folder = false } = {}) {
 	return (base || (folder ? 'folder' : 'file')) + ext;
 }
 
-export function createMedia({ treeDir, drafts, isExcluded }) {
+// `maxSize(rel)`: the biggest file allowed at that path (LFS paths get more).
+export function createMedia({ treeDir, drafts, isExcluded, maxSize = () => MAX_FILE_SIZE }) {
 	// Every visible file path under `root`, synced or drafted, minus deletions.
 	function files(root) {
 		const found = new Set();
@@ -67,7 +70,9 @@ export function createMedia({ treeDir, drafts, isExcluded }) {
 			const parent = folderOf(path.posix.dirname(rel));
 			const name = path.posix.basename(rel);
 			if (name.startsWith('.')) continue;
-			parent.files.push({ name, path: rel, size: drafts.read(rel)?.length ?? 0, status: statusOf(rel) });
+			// A file in Git LFS is synced as a pointer: its real size is inside it.
+			const bytes = drafts.read(rel);
+			parent.files.push({ name, path: rel, size: bytes ? (parsePointer(bytes)?.size ?? bytes.length) : 0, status: statusOf(rel) });
 		}
 		for (const node of folders.values()) node.folders.sort((a, b) => a.name.localeCompare(b.name));
 		return top;
@@ -89,8 +94,8 @@ export function createMedia({ treeDir, drafts, isExcluded }) {
 		tree,
 
 		add(folder, name, bytes, root) {
-			if (bytes.length > MAX_FILE_SIZE) throw Object.assign(new Error('File too large.'), { code: 'tooLarge' });
 			const rel = uniquePath(folder, safeName(name), root);
+			if (bytes.length > maxSize(rel)) throw Object.assign(new Error('File too large.'), { code: 'tooLarge' });
 			drafts.save(rel, bytes);
 			return rel;
 		},

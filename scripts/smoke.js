@@ -48,6 +48,8 @@ const scenarios = [
 	// A long typed paragraph shows in the screenshot that the text fills the editor.
 	{ name: 'preview-collapse', screen: 'entry', open: 'src/_home.md', preview: true, collapse: true,
 		type: `\n${'The editor text uses the whole width once the preview is folded away. '.repeat(6)}\n` },
+	// Publish with a simulated GitHub: progress, then "up to date", no changes left.
+	{ name: 'publish', screen: 'entry', open: 'src/_home.md', type: '\nPublished from Kiri Studio.\n', publish: true },
 ];
 
 let failed = 0;
@@ -86,6 +88,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
 		...(scenario.collapse && { KIRI_STUDIO_SMOKE_COLLAPSE: '1' }),
+		...(scenario.publish && { KIRI_STUDIO_SMOKE_PUBLISH: '1', KIRI_STUDIO_FAKE_PUBLISH: '60' }),
 		...(scenario.pick && { KIRI_STUDIO_SMOKE_PICK: '1' }),
 		...(scenario.update && { KIRI_STUDIO_SMOKE_UPDATE: scenario.update }),
 	};

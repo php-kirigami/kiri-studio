@@ -3,11 +3,11 @@
 // in the main process; nothing here touches the disk.
 import { h } from './dom.js';
 import { t } from './i18n.js';
+import { maxFileSize } from '../shared/lfs.js';
 
 const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
 const RESIZABLE = /^image\/(jpeg|png|webp)$/;
 const MAX_SIDE = 2560; // px: plenty for any web layout; Kirigami makes the smaller sizes
-const MAX_SIZE = 25 * 1024 * 1024;
 
 const mediaUrl = (file) => `studio-media://site/${encodeURIComponent(file.path)}?v=${file.size}-${file.status ?? ''}`;
 
@@ -177,13 +177,16 @@ export async function showMedia(ws, media, folderPath = media.root) {
 		const problems = [];
 		for (const [i, file] of files.entries()) {
 			status.textContent = t('media.adding', { current: i + 1, total: files.length });
-			if (file.size > MAX_SIZE) {
-				problems.push(t('media.tooLarge', { name: file.name }));
+			// Files kept in Git LFS (PDF reports…) may be bigger than the rest.
+			const limit = maxFileSize(ws.scope.lfs ?? [], `${folder.path}/${file.name}`);
+			const tooLarge = () => t('media.tooLarge', { name: file.name, max: Math.round(limit / 1048576) });
+			if (file.size > limit) {
+				problems.push(tooLarge());
 				continue;
 			}
 			const result = await studio.media.add(folder.path, file.name, await prepare(file));
 			ws.setChanges(result.changes);
-			if (result.error) problems.push(t(result.error === 'tooLarge' ? 'media.tooLarge' : 'media.addFailed', { name: file.name }));
+			if (result.error) problems.push(result.error === 'tooLarge' ? tooLarge() : t('media.addFailed', { name: file.name }));
 		}
 		await refresh();
 		if (problems.length) main.querySelector('.media-status').textContent = problems.join(' ');

@@ -7,6 +7,7 @@ import { createDataEditor } from './data-editor.js';
 import { h } from './dom.js';
 import { ask, imageCode, pickImage, showMedia } from './media-view.js';
 import { createPreviewPane } from './preview-pane.js';
+import { createPublisher } from './publish.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -211,6 +212,7 @@ async function openSite(user, site, sites) {
 				button.toggleAttribute('data-changed', this.changes.has(button.dataset.path));
 			}
 			changesLabel.textContent = this.changes.size ? changeCount(this.changes.size) : '';
+			this.onChanges?.();
 		},
 	};
 
@@ -300,24 +302,30 @@ async function openSite(user, site, sites) {
 	// every few minutes and when the window comes back to the front.
 	const mine = ws;
 	let lastSync = Date.now();
-	async function syncNow() {
-		lastSync = Date.now();
-		const result = await studio.site.sync();
-		if (ws !== mine) return;
-		setStatus(result.status);
-		if (!result.changed) return;
+	// Shows a new version of the site (after a sync, or after our own publish).
+	async function applyChanged(result) {
 		ws.scope = result.scope;
 		ws.outdated = new Set(result.outdated);
 		ws.setChanges(result.changes);
 		await renderSidebar(result.scope);
 		await ws.view?.synced();
 	}
+	async function syncNow() {
+		lastSync = Date.now();
+		const result = await studio.site.sync();
+		if (ws !== mine) return;
+		setStatus(result.status);
+		if (!result.changed) return;
+		await applyChanged(result);
+	}
 	const timer = setInterval(syncNow, SYNC_EVERY);
 	const onFocus = () => { if (Date.now() - lastSync > SYNC_ON_FOCUS_AFTER) syncNow(); };
 	window.addEventListener('focus', onFocus);
+	const publisher = createPublisher({ ws, layout, siteName: site.fullName, apply: (result) => ws === mine ? applyChanged(result) : null });
 	ws.stopSync = () => {
 		clearInterval(timer);
 		window.removeEventListener('focus', onFocus);
+		publisher.close();
 	};
 
 	// Live preview, next to the editor; its button sits in the top bar.
@@ -369,6 +377,18 @@ async function openSite(user, site, sites) {
 				await new Promise((resolve) => setTimeout(resolve, 1200)); // let the checks run
 				ws.showProblems?.();
 			}
+			if (info.smokePublish) {
+				// Publish with a simulated GitHub and wait for "up to date".
+				window.confirm = () => true;
+				const button = layout.querySelector('.topbar .publish');
+				if (button.disabled) throw new Error('Publish is disabled although there are changes');
+				button.click();
+				const line = layout.querySelector('.publish-line');
+				for (let i = 0; i < 100 && line.dataset.state !== 'done'; i++) await new Promise((resolve) => setTimeout(resolve, 100));
+				if (line.dataset.state !== 'done') throw new Error(`Publish did not finish: "${line.textContent}"`);
+				if (ws.changes.size) throw new Error('Changes remain after publishing');
+				if (!button.disabled) throw new Error('Publish stays enabled with nothing to publish');
+			}
 			studio.ui.settled('entry');
 		}
 	}
@@ -407,7 +427,7 @@ function topbar(user, site) {
 			h('button.link', { onclick: () => showSites(user, { pick: true }) }, t('ws.switch'))),
 		h('div.spacer'),
 		site.url && h('button.secondary', { onclick: () => studio.site.openLive() }, t('ws.viewSite')),
-		h('button.primary', { disabled: true, title: t('ws.publishSoon') }, t('ws.publish')),
+		h('button.primary.publish', { disabled: true }, t('ws.publish')),
 		h('details.account',
 			h('summary', avatar(user), h('span', user.name)),
 			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')), version())));
@@ -522,7 +542,10 @@ async function showEntry(entry) {
 	const outdated = h('p.notice.outdated', { hidden: !file.outdated }, t('editor.outdated'));
 	const untouched = () => pending === null && !ws.changes.has(entry.path) && editor.view.state.doc.toString() === file.text;
 	const view = {
+		// Makes sure what was just typed is in the drafts (before publishing).
+		flush,
 		async synced() {
+			discard.hidden = !ws.changes.has(entry.path);
 			if (!untouched()) {
 				outdated.hidden = !ws.outdated.has(entry.path);
 				return;

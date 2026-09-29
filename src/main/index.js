@@ -15,6 +15,10 @@ import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
 import { createPreview } from './preview.js';
 import { startUpdates } from './updates.js';
+import { publishSite, describeChanges } from './publish.js';
+import { watchDeploy } from './deploy.js';
+import { createLfs, createLfsStore, parsePointer } from './lfs.js';
+import { maxFileSize } from '../shared/lfs.js';
 
 app.setName('Kiri Studio');
 if (process.env.KIRI_STUDIO_USER_DATA) app.setPath('userData', path.resolve(process.env.KIRI_STUDIO_USER_DATA));
@@ -62,6 +66,7 @@ ipcMain.handle('app:info', () => ({
 	smokeView: !!process.env.KIRI_STUDIO_SMOKE_VIEW,
 	smokePreview: !!process.env.KIRI_STUDIO_SMOKE_PREVIEW,
 	smokeCollapse: !!process.env.KIRI_STUDIO_SMOKE_COLLAPSE,
+	smokePublish: !!process.env.KIRI_STUDIO_SMOKE_PUBLISH,
 	smokePick: !!process.env.KIRI_STUDIO_SMOKE_PICK, // show the site list even with one site
 	// Smoke tests: local files to add in the opened media manager.
 	smokeFiles: (process.env.KIRI_STUDIO_SMOKE_ADD ?? '').split(path.delimiter).filter(Boolean).map((file) => ({
@@ -170,7 +175,7 @@ function loadScope(treeDir, drafts) {
 	const excluded = (rel) => isExcluded(scope.exclude, rel);
 	return {
 		scope,
-		media: createMedia({ treeDir, drafts, isExcluded: excluded }),
+		media: createMedia({ treeDir, drafts, isExcluded: excluded, maxSize: (rel) => maxFileSize(scope.lfs, rel) }),
 		collections: createCollections({ treeDir, drafts, scope, isExcluded: excluded }),
 		// Schema of any data file, including one the client just created.
 		schemaFor: schemaResolver(treeDir, readStudioConfig(treeDir).studio ?? {}, (rel) => drafts.read(rel)),
@@ -214,7 +219,10 @@ ipcMain.handle('site:open', async (_event, site) => {
 			return result;
 		};
 	}
-	current = { site, dir, treeDir, drafts, preview, ...loadScope(treeDir, drafts) };
+	// Git LFS: uploads on publish, and the real bytes of a file shown in the app.
+	const lfs = site.local ? null : createLfs(gh.token, site.fullName);
+	const lfsStore = createLfsStore(path.join(dir, 'lfs'), lfs, site.branch);
+	current = { site, dir, treeDir, drafts, preview, lfs, lfsStore, ...loadScope(treeDir, drafts) };
 	schemas.clear();
 	writePrefs({ lastSite: site.fullName });
 	return {
@@ -348,6 +356,59 @@ ipcMain.handle('collection:delete', (_event, rel) => {
 	return { changes: changes() };
 });
 
+// --- Publish -------------------------------------------------------------------
+
+// Publishes the client's changes as one commit, then follows the site's build
+// until it is online. Progress reaches the renderer through 'publish:status';
+// the answer carries the refreshed scope, like a sync that changed things.
+let publishing = null;
+ipcMain.handle('publish:run', () => (publishing ??= runPublish().finally(() => { publishing = null; })));
+
+async function runPublish() {
+	const open = current;
+	const say = (status) => send('publish:status', { site: open.site.fullName, ...status });
+	if (process.env.KIRI_STUDIO_FAKE_PUBLISH) return fakePublish(open, say);
+	if (open.site.local) return { error: 'notAvailable', changes: changes() };
+	try {
+		const result = await publishSite({
+			gh,
+			lfs: { upload: (items, branch) => open.lfs.upload(items, branch), remember: open.lfsStore.remember },
+			site: open.site,
+			siteDir: open.dir,
+			treeDir: open.treeDir,
+			drafts: open.drafts,
+			message: (work) => describeChanges(work, open.scope),
+			onStatus: say,
+		});
+		// The synced copy is now the commit just made.
+		open.drafts.tidy();
+		Object.assign(open, loadScope(open.treeDir, open.drafts));
+		schemas.clear();
+		open.preview.resync();
+		if (result.published) {
+			watchDeploy({ gh, site: open.site, sha: result.sha, onStatus: say, isCancelled: () => current !== open })
+				.catch(() => say({ state: 'published' }));
+		}
+		return { published: result.published, scope: open.scope, changes: changes(), outdated: open.drafts.outdated() };
+	} catch (error) {
+		console.warn(`Kiri Studio: publish failed: ${error.message}`);
+		return { error: error.code ?? 'failed', message: error.message, changes: changes() };
+	}
+}
+
+// Smoke tests (KIRI_STUDIO_FAKE_PUBLISH=<ms per step>): the same statuses, no GitHub.
+async function fakePublish(open, say) {
+	const pause = () => new Promise((resolve) => setTimeout(resolve, Number(process.env.KIRI_STUDIO_FAKE_PUBLISH) || 1));
+	const work = open.drafts.list();
+	say({ state: 'checking' }); await pause();
+	say({ state: 'uploading', done: 1, total: 2 }); await pause();
+	say({ state: 'committing' }); await pause();
+	open.drafts.forget(work);
+	say({ state: 'deploying' }); await pause();
+	setTimeout(() => say({ state: 'online', url: null }), Number(process.env.KIRI_STUDIO_FAKE_PUBLISH) || 1);
+	return { published: true, scope: open.scope, changes: changes(), outdated: [] };
+}
+
 // --- Images and documents ------------------------------------------------------
 
 // Checks that `rel` is inside a media folder; returns that folder.
@@ -412,11 +473,21 @@ const MIME = {
 	'.gif': 'image/gif', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.pdf': 'application/pdf',
 };
 protocol.registerSchemesAsPrivileged([{ scheme: 'studio-media', privileges: { standard: true, secure: true } }]);
-function serveMedia(request) {
+async function serveMedia(request) {
 	const rel = decodeURIComponent(new URL(request.url).pathname.slice(1));
 	if (!current || !mediaRootOf(current.scope, rel)) return new Response(null, { status: 404 });
-	const data = current.drafts.read(rel);
+	let data = current.drafts.read(rel);
 	if (!data) return new Response(null, { status: 404 });
+	// A file kept in Git LFS is synced as a pointer: show the real bytes.
+	const pointer = parsePointer(data);
+	if (pointer) {
+		try {
+			data = await current.lfsStore.resolve(pointer);
+		} catch (error) {
+			console.warn(`Kiri Studio: LFS file ${rel} unavailable: ${error.message}`);
+			return new Response(null, { status: 502 });
+		}
+	}
 	return new Response(data, {
 		headers: {
 			'Content-Type': MIME[path.posix.extname(rel).toLowerCase()] ?? 'application/octet-stream',
