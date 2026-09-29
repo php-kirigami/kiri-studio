@@ -1,0 +1,45 @@
+# Unit tests and end-to-end smoke tests on every client platform.
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Build the UI
+        run: npm run build
+
+      # Launches the real app on test/fixtures/site in a few scenarios
+      # (xvfb on Linux); fails on a missing screen or any renderer error.
+      - name: Smoke tests
+        run: npm run smoke -- smoke-${{ matrix.os }}
+
+      - name: Keep the screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.os }}
+          path: smoke-${{ matrix.os }}
+          if-no-files-found: ignore

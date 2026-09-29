@@ -19,7 +19,8 @@
   "scripts": {
     "build": "node scripts/build.js",
     "start": "node scripts/build.js && node scripts/start.js",
-    "test": "node --test"
+    "test": "node --test",
+    "smoke": "node scripts/smoke.js"
   },
   "dependencies": {
     "ajv": "^8.20.0",

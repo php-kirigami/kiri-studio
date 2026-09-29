@@ -1,0 +1,9 @@
+# Text files use LF everywhere, so drafts and publishes never flip line endings.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.gif binary
+*.pdf binary
+*.ico binary
