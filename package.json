@@ -1,0 +1,32 @@
+{
+  "name": "kiri-studio",
+  "productName": "Kiri Studio",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Desktop app that lets site owners edit and publish their Kirigami site — no Git, no code, one Publish button.",
+  "license": "GPL-3.0-or-later",
+  "author": "Maxime Larrivée-Roy",
+  "homepage": "https://github.com/php-kirigami/kiri-studio",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/php-kirigami/kiri-studio.git"
+  },
+  "type": "module",
+  "main": "src/main/index.js",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node scripts/start.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "js-yaml": "5.4.2"
+  },
+  "devDependencies": {
+    "electron": "44.4.5"
+  },
+  "allowScripts": {
+    "electron@44.4.5": true
+  }
+}

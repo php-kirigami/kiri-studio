@@ -175,10 +175,17 @@ studio:
   `kirigami.root`). In both, the client can create, rename, and delete
   **subfolders** to organize their media.
 - Everything else in the repo is invisible in the app.
-- Discovery (reading PHPDOC headers) happens in the app. The rules must match
-  php-prepros's annotation parsing; reuse it through the site's own PHP
-  runtime (`FS::phpFileInfo()` via a small script) rather than re-implementing
-  it in JS.
+- Discovery (reading PHPDOC headers) happens in the app, in `src/main/scope.js`.
+  Running it through the site's PHP runtime was the first idea, but that needs
+  the site's dependencies installed before the file list can even show. The
+  rules are small, so they are ported to JS instead, each one pointing at its
+  source: core's `isPage()` (a `_*.php` with no `_`-prefixed folder under
+  `kirigami.root`), php-prepros's `FS::parseDocBlock()` (first doc comment,
+  `@tag value`, indented continuations), and its `page_info` hook (a
+  `.md`/`.yaml`/`.yml`/`.json` value that isn't a URL, resolved against the
+  page's folder). Tests pin the behavior; if php-prepros changes these rules,
+  `scope.js` must follow. Layout files are not pages, so data they load (a
+  menu) needs an `include` entry.
 - Core gotcha found while adding the block: `kirigami.yaml` is loaded by
   `struct-walker`, which replaces any value naming an existing `.yaml`/`.json`
   file with that file's content. The core now re-reads `studio:` with a plain
@@ -390,10 +397,21 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
 
 ### Phase 2 — App skeleton
 
-- `../kiri-studio/`: Electron with `contextIsolation`, `sandbox`, no
-  `nodeIntegration`, a narrow preload API.
-- Sign in, project list, tarball sync on startup ("Updating…" → "Ready"),
-  filtered file tree.
+- ✅ Electron with `contextIsolation`, `sandbox`, no `nodeIntegration`, a
+  narrow preload API (`src/preload/index.cjs`), a strict CSP, no navigation.
+- ✅ Sign in (device flow; code copied and GitHub opened for the client;
+  token in `safeStorage`), site list (App installations × push access ×
+  `studio:` block), reopening the last site directly (or the only one),
+  tarball sync on open (skipped when the branch head hasn't moved; falls back
+  to the last copy when offline), and the filtered tree: discovered content,
+  collections, image and document folders.
+- ✅ French/English UI, following the OS language.
+- ✅ Verified against `kiri-studio-sandbox` (screenshots of the sign-in,
+  workspace, and an open file), with unit tests for discovery and archive
+  extraction. Content is shown read-only until phase 3.
+- Not yet: the sign-in round trip was only tested through the spike script,
+  not by clicking through the app; offline fallback untested; a first launch
+  shows no progress while the site list loads.
 
 ### Phase 3 — Editing
 

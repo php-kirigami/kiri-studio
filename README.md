@@ -32,9 +32,41 @@ Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 
 ## Status
 
-**Planning.** Nothing to install yet. The plan, the design choices, and the
+**Early development.** Signing in, finding your sites, keeping them in sync,
+and browsing what you can edit work; editing, preview, and publishing come
+next. Nothing to install yet. The plan, the design choices, and the
 feasibility checks already done (Kirigami running inside Electron, publishing
 through the GitHub API, all three platforms) are in [docs/PLAN.md](docs/PLAN.md).
+
+---
+
+## Development
+
+Requires Node.js 24+.
+
+```bash
+npm install
+npm start      # launches the app
+npm test       # unit tests (node:test)
+```
+
+npm 12 blocks install scripts unless approved; `package.json` approves
+Electron's (it downloads the Electron binary). If `node_modules/electron/dist`
+is missing after install, run `node node_modules/electron/install.js`.
+
+`npm start` works from VS Code's terminal: it drops the
+`ELECTRON_RUN_AS_NODE` variable that terminal sets.
+
+Environment variables for development and smoke tests:
+
+| Variable | Effect |
+|---|---|
+| `KIRI_STUDIO_TOKEN` | Use this GitHub token instead of the saved sign-in (never saved). |
+| `KIRI_STUDIO_USER_DATA` | Keep settings, sign-in, and synced sites in this folder. |
+| `KIRI_STUDIO_LOCALE` | Force the UI language (`fr`, `en`). |
+| `KIRI_STUDIO_SCREENSHOT` | Save a PNG of the window once `KIRI_STUDIO_SMOKE_SCREEN` shows, then quit. |
+| `KIRI_STUDIO_SMOKE_SCREEN` | Screen to capture: `signin`, `sites`, `workspace` (default), or `entry`. |
+| `KIRI_STUDIO_SMOKE_OPEN` | Open this content path once the workspace shows (pair with `entry`). |
 
 ---
 

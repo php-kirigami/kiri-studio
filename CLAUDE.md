@@ -25,6 +25,17 @@ local Git.
 - **GitHub App:** "Kiri Studio" on `php-kirigami`, App ID 5118902, client ID
   `Iv23lioowQVMtYGG2LsY` (public), device flow on, token expiration off.
 
+## Layout
+
+- `src/main/` — Electron main process (ESM): `index.js` (window + IPC),
+  `auth.js` (device flow, token store), `github.js` (REST client),
+  `sites.js`, `sync.js` (tarball sync), `scope.js` (what's editable; mirrors
+  Kirigami's page and PHPDOC rules), `lib/tar.js` (copy of core's reader).
+- `src/preload/index.cjs` — the only renderer API (`window.studio`).
+- `src/renderer/` — plain DOM UI: `app.js`, `i18n.js` (FR/EN), `styles.css`
+  (rem/em only).
+- `test/` — `node --test`. UI checks: smoke screenshots (see README).
+
 ## Non-negotiable conventions
 
 - **The client experience comes first.** Seamless for a non-technical person
