@@ -29,11 +29,12 @@ local Git.
 
 - `src/main/` — Electron main process (ESM): `index.js` (window + IPC),
   `auth.js` (device flow, token store), `github.js` (REST client),
-  `sites.js`, `sync.js` (tarball sync), `scope.js` (what's editable; mirrors
+  `sites.js`, `sync.js` (tarball sync), `drafts.js` (unpublished changes), `scope.js` (what's editable; mirrors
   Kirigami's page and PHPDOC rules), `lib/tar.js` (copy of core's reader).
 - `src/preload/index.cjs` — the only renderer API (`window.studio`).
-- `src/renderer/` — plain DOM UI: `app.js`, `i18n.js` (FR/EN), `styles.css`
-  (rem/em only).
+- `src/renderer/` — plain DOM UI: `app.js`, `markdown-editor.js`
+  (CodeMirror 6), `i18n.js` (FR/EN), `styles.css` (rem/em only). Bundled by
+  `scripts/build.js` (esbuild) into `build/renderer/`, which the window loads.
 - `test/` — `node --test`. UI checks: smoke screenshots (see README).
 
 ## Non-negotiable conventions

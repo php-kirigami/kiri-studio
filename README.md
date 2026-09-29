@@ -33,8 +33,8 @@ Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 ## Status
 
 **Early development.** Signing in, finding your sites, keeping them in sync,
-and browsing what you can edit work; editing, preview, and publishing come
-next. Nothing to install yet. The plan, the design choices, and the
+and editing text (with changes saved automatically as drafts) work; forms,
+images, preview, and publishing come next. Nothing to install yet. The plan, the design choices, and the
 feasibility checks already done (Kirigami running inside Electron, publishing
 through the GitHub API, all three platforms) are in [docs/PLAN.md](docs/PLAN.md).
 
@@ -46,7 +46,8 @@ Requires Node.js 24+.
 
 ```bash
 npm install
-npm start      # launches the app
+npm start      # builds the UI, then launches the app
+npm run build  # builds the UI only (build/renderer/)
 npm test       # unit tests (node:test)
 ```
 
@@ -67,6 +68,7 @@ Environment variables for development and smoke tests:
 | `KIRI_STUDIO_SCREENSHOT` | Save a PNG of the window once `KIRI_STUDIO_SMOKE_SCREEN` shows, then quit. |
 | `KIRI_STUDIO_SMOKE_SCREEN` | Screen to capture: `signin`, `sites`, `workspace` (default), or `entry`. |
 | `KIRI_STUDIO_SMOKE_OPEN` | Open this content path once the workspace shows (pair with `entry`). |
+| `KIRI_STUDIO_SMOKE_TYPE` | Type this text at the end of the opened file and save it as a draft. |
 
 ---
 

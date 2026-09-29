@@ -9,6 +9,7 @@ import { createClient } from './github.js';
 import { listSites } from './sites.js';
 import { readSyncState, syncSite } from './sync.js';
 import { buildScope, inScope } from './scope.js';
+import { createDrafts } from './drafts.js';
 
 app.setName('Kiri Studio');
 if (process.env.KIRI_STUDIO_USER_DATA) app.setPath('userData', path.resolve(process.env.KIRI_STUDIO_USER_DATA));
@@ -21,7 +22,7 @@ let win = null;
 let gh = null;          // GitHub client for the signed-in user
 let user = null;        // { login, name, avatar }
 let signIn = null;      // pending device flow: { verificationUri, abort }
-let current = null;     // open site: { site, treeDir, scope }
+let current = null;     // open site: { site, treeDir, scope, drafts }
 
 function readPrefs() {
 	try { return JSON.parse(fs.readFileSync(prefsFile, 'utf8')); } catch { return {}; }
@@ -49,6 +50,7 @@ ipcMain.handle('app:info', () => ({
 	// Smoke tests can force the UI language and open an entry by path.
 	locale: process.env.KIRI_STUDIO_LOCALE || app.getLocale(),
 	smokeOpen: process.env.KIRI_STUDIO_SMOKE_OPEN || null,
+	smokeType: process.env.KIRI_STUDIO_SMOKE_TYPE || null,
 }));
 
 ipcMain.handle('auth:status', async () => {
@@ -117,14 +119,38 @@ ipcMain.handle('site:open', async (_event, site) => {
 		if (!fs.existsSync(treeDir)) throw error;
 		status = 'offline';
 	}
-	current = { site, treeDir, scope: buildScope(treeDir) };
+	current = { site, treeDir, scope: buildScope(treeDir), drafts: createDrafts(dir, treeDir) };
 	writePrefs({ lastSite: site.fullName });
-	return { site, scope: current.scope, status, syncedAt: readSyncState(dir)?.syncedAt ?? null };
+	return {
+		site,
+		scope: current.scope,
+		status,
+		syncedAt: readSyncState(dir)?.syncedAt ?? null,
+		changes: current.drafts.list().map((draft) => draft.path),
+	};
 });
 
-ipcMain.handle('site:read', (_event, rel) => {
+const editable = (rel) => {
 	if (!current || typeof rel !== 'string' || !inScope(current.scope, rel)) throw new Error('Not editable.');
-	return fs.readFileSync(path.join(current.treeDir, rel), 'utf8');
+	return rel;
+};
+
+// The client's current text of a file: their draft if any, else the synced one.
+ipcMain.handle('site:read', (_event, rel) => ({
+	text: current.drafts.read(editable(rel)).toString('utf8'),
+	changed: current.drafts.has(rel),
+}));
+
+// Autosave target. Returns the paths with unpublished changes.
+ipcMain.handle('drafts:save', (_event, rel, text) => {
+	if (typeof text !== 'string') throw new Error('Text expected.');
+	current.drafts.save(editable(rel), text);
+	return current.drafts.list().map((draft) => draft.path);
+});
+
+ipcMain.handle('drafts:discard', (_event, rel) => {
+	current.drafts.discard(editable(rel));
+	return current.drafts.list().map((draft) => draft.path);
 });
 
 ipcMain.handle('site:openLive', () => {
@@ -161,6 +187,20 @@ function createWindow() {
 	win.removeMenu();
 	win.once('ready-to-show', () => win.show());
 
+	// Before closing, let the renderer save what's being typed (autosave waits
+	// half a second after the last keystroke). Close anyway after 3 seconds.
+	let closing = false;
+	win.on('close', (event) => {
+		if (closing) return;
+		event.preventDefault();
+		closing = true;
+		const done = () => win?.destroy();
+		ipcMain.once('app:readyToClose', done);
+		setTimeout(done, 3000);
+		send('app:beforeClose');
+	});
+	win.on('closed', () => { win = null; });
+
 	// The renderer never navigates or opens windows; links go to the browser.
 	win.webContents.on('will-navigate', (event) => event.preventDefault());
 	win.webContents.setWindowOpenHandler(({ url }) => {
@@ -168,7 +208,7 @@ function createWindow() {
 		return { action: 'deny' };
 	});
 
-	win.loadFile(path.join(import.meta.dirname, '..', 'renderer', 'index.html'));
+	win.loadFile(path.join(import.meta.dirname, '..', '..', 'build', 'renderer', 'index.html'));
 }
 
 app.whenReady().then(() => {

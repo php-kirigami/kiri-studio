@@ -415,9 +415,25 @@ platform. Known follow-ups carried into phase 1: tar file modes in core, the
 
 ### Phase 3 — Editing
 
-- Markdown editor, schema-driven YAML forms, guarded raw YAML fallback.
-- Image manager (drop, downscale, rename, delete with reference check).
-- Persisted drafts, a "changes" list, per-file discard.
+- ✅ Markdown editor: CodeMirror 6, Markdown styled in place (bigger
+  headings, bold, colored links; syntax marks kept but muted), a toolbar
+  (title, subtitle, bold, italic, link, lists, quote) with Ctrl/⌘+B/I/K,
+  spellcheck. The source is saved as typed: no reformatting, clean diffs.
+- ✅ Persisted drafts (`src/main/drafts.js`): autosave half a second after
+  typing stops, and on leaving a file, switching site, signing out, or
+  closing the window (the main process waits for the renderer's flush, up to
+  3 s). Drafts live apart from the synced copy, survive restarts and syncs,
+  and record the sha-256 of the file they started from for phase 4's
+  conflict check. Typing the original back drops the draft. Changed files get
+  a dot in the sidebar, the status bar counts them, and "Undo my changes"
+  discards one file's draft after a confirmation.
+- The renderer is now bundled with esbuild (`npm run build`, run by
+  `npm start`) into `build/renderer/`: CodeMirror's packages import each other
+  by name, which a `file://` page with a strict CSP can't resolve.
+- Schema-driven YAML forms, with fields guessed when no `forms` entry exists.
+- Image and file managers (drop, downscale, subfolders, rename, delete with
+  reference check).
+- Collections: creating and deleting files in `create: true` globs.
 
 ### Phase 4 — Publish
 

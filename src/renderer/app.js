@@ -1,10 +1,13 @@
 // Kiri Studio renderer: sign-in → site picker → workspace. Plain DOM, no
 // framework. Every string shown to the client goes through t(); data from
 // GitHub or the site is only ever set as text, never as HTML.
-import { fileCount, setLocale, t } from './i18n.js';
+import { changeCount, fileCount, setLocale, t } from './i18n.js';
+import { actions, createMarkdownEditor } from './markdown-editor.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
+
+let ws = null; // the open workspace, see openSite()
 
 // h('button.primary', { onclick }, 'Label') → element. The props object is
 // optional; children may be strings, elements, arrays, or null/false.
@@ -77,7 +80,14 @@ studio.auth.onChange((state) => {
 
 // --- Sites -----------------------------------------------------------------
 
+// Leaving the workspace: save what's being typed first.
+async function leaveWorkspace() {
+	await ws?.close();
+	ws = null;
+}
+
 async function showSites(user, { pick = false } = {}) {
+	await leaveWorkspace();
 	show('loading', h('main.center', h('p.waiting', t('loading'))));
 	let list;
 	try {
@@ -114,6 +124,7 @@ async function showSites(user, { pick = false } = {}) {
 }
 
 async function signOut() {
+	await leaveWorkspace();
 	await studio.auth.signOut();
 	showSignIn();
 }
@@ -130,12 +141,14 @@ async function openSite(user, site, sites) {
 
 	const sidebar = h('nav.sidebar', { 'aria-label': t('ws.pages') });
 	const main = h('main.editor', h('p.empty', t('sync.downloading')));
+	const changesLabel = h('span.changes');
 
+	await leaveWorkspace();
 	show('workspace-loading', h('div.workspace',
 		topbar(user, site, sites),
 		sidebar,
 		main,
-		h('footer.statusbar', status)));
+		h('footer.statusbar', status, changesLabel)));
 
 	let opened;
 	try {
@@ -147,15 +160,34 @@ async function openSite(user, site, sites) {
 	stopListening();
 	setStatus(opened.status);
 
-	const select = (button, render) => {
+	ws = {
+		main,
+		sidebar,
+		changes: new Set(opened.changes),
+		closeView: null, // flushes and tears down the open editor, if any
+		async close() {
+			await this.closeView?.();
+			this.closeView = null;
+		},
+		setChanges(paths) {
+			this.changes = new Set(paths);
+			for (const button of sidebar.querySelectorAll('[data-path]')) {
+				button.toggleAttribute('data-changed', this.changes.has(button.dataset.path));
+			}
+			changesLabel.textContent = this.changes.size ? changeCount(this.changes.size) : '';
+		},
+	};
+
+	const select = async (button, render) => {
+		await ws.close();
 		sidebar.querySelectorAll('[aria-current]').forEach((el) => el.removeAttribute('aria-current'));
 		button.setAttribute('aria-current', 'true');
-		render();
+		return render();
 	};
 
 	const entryButton = (entry) => {
 		const button = h('button.entry', { dataset: { kind: entry.kind, path: entry.path } }, entry.label);
-		button.addEventListener('click', () => select(button, () => showEntry(main, entry)));
+		button.addEventListener('click', () => select(button, () => showEntry(entry)));
 		return button;
 	};
 
@@ -185,6 +217,7 @@ async function openSite(user, site, sites) {
 		mediaSection(t('ws.images'), scope.images),
 		mediaSection(t('ws.files'), scope.files),
 	].flat().filter(Boolean));
+	ws.setChanges(opened.changes);
 
 	main.replaceChildren(h('p.empty', t('ws.empty')));
 	studio.ui.settled('workspace');
@@ -192,7 +225,11 @@ async function openSite(user, site, sites) {
 	if (info.smokeOpen) {
 		const entry = [...scope.content, ...scope.collections.flatMap((c) => c.files)].find((e) => e.path === info.smokeOpen);
 		const button = sidebar.querySelector(`[data-path="${CSS.escape(info.smokeOpen)}"]`);
-		if (entry && button) select(button, () => showEntry(main, entry).then(() => studio.ui.settled('entry')));
+		if (entry && button) {
+			await select(button, () => showEntry(entry));
+			if (info.smokeType) await ws.smokeType?.(info.smokeType);
+			studio.ui.settled('entry');
+		}
 	}
 }
 
@@ -204,24 +241,111 @@ function topbar(user, site, sites) {
 			sites.length > 1 && h('button.link', { onclick: () => showSites(user, { pick: true }) }, t('ws.switch'))),
 		h('div.spacer'),
 		site.url && h('button.secondary', { onclick: () => studio.site.openLive() }, t('ws.viewSite')),
-		h('button.primary', { disabled: true, title: t('ws.readOnly') }, t('ws.publish')),
+		h('button.primary', { disabled: true, title: t('ws.publishSoon') }, t('ws.publish')),
 		h('details.account',
 			h('summary', h('img.avatar', { src: user.avatar, alt: '' }), h('span', user.name)),
 			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')))));
 }
 
-async function showEntry(main, entry) {
+async function showEntry(entry) {
+	const { main } = ws;
 	main.replaceChildren(h('p.empty', t('loading')));
+	let file;
 	try {
-		const text = await studio.site.read(entry.path);
-		main.replaceChildren(
+		file = await studio.site.read(entry.path);
+	} catch (error) {
+		return main.replaceChildren(h('p.notice', errorMessage(error)));
+	}
+
+	if (entry.kind !== 'markdown') {
+		// Data files get forms next; shown read-only until then.
+		return main.replaceChildren(
 			h('h1', entry.label),
 			h('p.notice', t('ws.readOnly')),
-			h('pre.source', text));
-	} catch (error) {
-		main.replaceChildren(h('p.notice', errorMessage(error)));
+			h('pre.source', file.text));
 	}
+
+	// Autosave: every change is written as a draft half a second after typing
+	// stops, and immediately when leaving the file or closing the app.
+	const saveState = h('span.save-state');
+	const discard = h('button.link.discard', { hidden: !ws.changes.has(entry.path) }, t('editor.discard'));
+	const setSaveState = (state) => {
+		saveState.dataset.state = state;
+		saveState.textContent = state ? t(`editor.${state}`) : '';
+	};
+	let pending = null;
+	let timer = null;
+	const flush = async () => {
+		clearTimeout(timer);
+		if (pending === null) return;
+		const text = pending;
+		pending = null;
+		ws.setChanges(await studio.drafts.save(entry.path, text));
+		discard.hidden = !ws.changes.has(entry.path);
+		if (pending === null) setSaveState('saved');
+	};
+
+	const surface = h('div.md-surface');
+	const editor = createMarkdownEditor(surface, {
+		text: file.text,
+		onChange(text) {
+			pending = text;
+			setSaveState('saving');
+			clearTimeout(timer);
+			timer = setTimeout(flush, 500);
+		},
+	});
+
+	const tool = (action, label, key) => h('button.tool', {
+		dataset: { action },
+		title: key ? `${label} (${key})` : label,
+		'aria-label': label,
+		onclick: () => actions[action](editor.view),
+	});
+
+	discard.addEventListener('click', async () => {
+		if (!confirm(t('editor.discardConfirm', { label: entry.label }))) return;
+		clearTimeout(timer);
+		pending = null;
+		editor.destroy();
+		ws.closeView = null;
+		ws.setChanges(await studio.drafts.discard(entry.path));
+		showEntry(entry);
+	});
+
+	ws.closeView = async () => {
+		await flush();
+		editor.destroy();
+	};
+	ws.smokeType = async (text) => {
+		const { view } = editor;
+		view.dispatch({ changes: { from: view.state.doc.length, insert: text } });
+		await flush();
+	};
+
+	const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
+	main.replaceChildren(
+		h('div.entry-head', h('h1', entry.label), saveState, discard),
+		h('div.toolbar', { role: 'toolbar' },
+			tool('heading', t('editor.heading')),
+			tool('subheading', t('editor.subheading')),
+			h('span.sep'),
+			tool('bold', t('editor.bold'), `${mod}B`),
+			tool('italic', t('editor.italic'), `${mod}I`),
+			tool('link', t('editor.link'), `${mod}K`),
+			h('span.sep'),
+			tool('bullets', t('editor.bullets')),
+			tool('numbers', t('editor.numbers')),
+			tool('quote', t('editor.quote'))),
+		surface);
+	editor.focus();
 }
+
+// Closing the app: save what's being typed before the window goes away.
+studio.ui.onBeforeClose(async () => {
+	await ws?.close();
+	studio.ui.readyToClose();
+});
 
 function showFolder(main, folder, title = folder.name) {
 	main.replaceChildren(

@@ -26,7 +26,13 @@ contextBridge.exposeInMainWorld('studio', {
 		openLive: () => ipcRenderer.invoke('site:openLive'),
 		onSync: listen('sync:status'),
 	},
+	drafts: {
+		save: (path, text) => ipcRenderer.invoke('drafts:save', path, text),
+		discard: (path) => ipcRenderer.invoke('drafts:discard', path),
+	},
 	ui: {
 		settled: (screen) => ipcRenderer.send('ui:settled', screen),
+		onBeforeClose: listen('app:beforeClose'),
+		readyToClose: () => ipcRenderer.send('app:readyToClose'),
 	},
 });
