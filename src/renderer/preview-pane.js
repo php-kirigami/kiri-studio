@@ -5,6 +5,7 @@ import { h } from './dom.js';
 import { t } from './i18n.js';
 
 const STORAGE_KEY = 'kiri-studio.preview';
+const COLLAPSED_KEY = 'kiri-studio.preview-collapsed';
 
 // URL path of a page: "src/about/_index.php" (root "src") → "about/",
 // "src/_contact.php" → "contact.html", the home page → "".
@@ -23,6 +24,15 @@ function remembered() {
 function remember(on) {
 	try { localStorage.setItem(STORAGE_KEY, on ? 'on' : 'off'); } catch { /* per-viewer convenience only */ }
 }
+// Collapsed: the pane shrinks to a thin rail on the right (the preview keeps
+// running), so the editor gets the room. Separate from the top bar's toggle,
+// which hides the pane altogether.
+function rememberedCollapsed() {
+	try { return localStorage.getItem(COLLAPSED_KEY) === 'on'; } catch { return false; }
+}
+function rememberCollapsed(on) {
+	try { localStorage.setItem(COLLAPSED_KEY, on ? 'on' : 'off'); } catch { /* per-viewer convenience only */ }
+}
 
 export function createPreviewPane(ws, workspace) {
 	let url = null;
@@ -38,9 +48,22 @@ export function createPreviewPane(ws, workspace) {
 		sandbox: 'allow-scripts allow-same-origin allow-forms allow-popups',
 	});
 	const openInBrowser = h('button.link', { onclick: () => url && studio.openPreview(url + page) }, t('preview.openBrowser'));
+	// Both buttons get their arrow from CSS (::before); the label is for
+	// screen readers and the tooltip.
+	const collapseButton = h('button.preview-collapse', {
+		'aria-label': t('preview.collapse'),
+		title: t('preview.collapse'),
+		onclick: () => collapse(true),
+	});
+	const rail = h('button.preview-rail', {
+		'aria-label': t('preview.expand'),
+		title: t('preview.expand'),
+		onclick: () => collapse(false),
+	}, h('span.preview-rail-label', t('preview.button')));
 	const pane = h('aside.preview', { 'aria-label': t('preview.title') },
-		h('div.preview-head', status, h('div.spacer'), openInBrowser),
-		frame);
+		h('div.preview-head', status, h('div.spacer'), openInBrowser, collapseButton),
+		frame,
+		rail);
 	const toggle = h('button.secondary.preview-toggle', { 'aria-pressed': 'false' }, t('preview.button'));
 
 	const setStatus = (state, text) => {
@@ -85,6 +108,13 @@ export function createPreviewPane(ws, workspace) {
 		}
 	}
 
+	function collapse(on, save = true) {
+		pane.classList.toggle('collapsed', on);
+		workspace.classList.toggle('preview-collapsed', on);
+		rail.setAttribute('aria-expanded', String(!on));
+		if (save) rememberCollapsed(on);
+	}
+
 	function show(on) {
 		workspace.classList.toggle('with-preview', on);
 		pane.hidden = !on;
@@ -92,12 +122,19 @@ export function createPreviewPane(ws, workspace) {
 		remember(on);
 		if (on) start();
 	}
-	toggle.addEventListener('click', () => show(pane.hidden));
+	toggle.addEventListener('click', () => {
+		// Asking for the preview from the top bar means seeing it, not a rail.
+		if (pane.hidden) collapse(false);
+		show(pane.hidden);
+	});
 
 	return {
 		pane,
 		toggle,
-		init: () => show(remembered()),
+		init: () => {
+			collapse(rememberedCollapsed(), false);
+			show(remembered());
+		},
 		// Shows the page an entry belongs to (content without a page keeps the current one).
 		navigate(entry) {
 			const next = pagePath(ws.scope.root, entry.page);

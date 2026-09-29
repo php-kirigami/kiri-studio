@@ -600,6 +600,30 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 	background: var(--panel);
 }
 .preview[hidden] { display: none; }
+
+/* Collapsed: a thin rail on the right; the frame stays loaded, just not shown. */
+.workspace.with-preview.preview-collapsed { grid-template-columns: 17rem minmax(0, 1fr) 2.5rem; }
+.preview.collapsed { grid-template-rows: 1fr; }
+.preview.collapsed .preview-head,
+.preview.collapsed .preview-frame { display: none; }
+.preview-collapse { padding: 0.25rem 0.5rem; color: var(--muted); }
+.preview-collapse::before { content: "\00bb"; font-size: 1.25rem; line-height: 1; }
+.preview-collapse:hover { color: var(--accent); }
+.preview-rail { display: none; }
+.preview.collapsed .preview-rail {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 0.75rem 0;
+	color: var(--muted);
+	background: none;
+	border: 0;
+	cursor: pointer;
+}
+.preview.collapsed .preview-rail::before { content: "\00ab"; font-size: 1.25rem; line-height: 1; }
+.preview.collapsed .preview-rail:hover { color: var(--accent); }
+.preview-rail-label { writing-mode: vertical-rl; font-size: 0.875rem; }
 .preview-head { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 1rem; border-bottom: var(--hair) solid var(--line); font-size: 0.875rem; }
 .preview-status { color: var(--muted); }
 .preview-status::before { content: ""; display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 50%; margin-right: 0.5rem; background: var(--muted); }

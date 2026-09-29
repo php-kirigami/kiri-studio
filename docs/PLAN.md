@@ -12,7 +12,10 @@ editor with JSON Schema help and smart indentation, autosaved drafts (text,
 binary, deletions), image/document managers (subfolders, downscale, viewer,
 `{% img-asset %}` copy/insert), collections, live preview, multi-editor
 awareness, unsigned installers + self-updates, CI on 3 OSes (unit + `npm
-run smoke`, 8 scenarios on `test/fixtures/site`).
+run smoke`, 10 scenarios on `test/fixtures/site`). The preview folds to a thin
+rail on the right (» in its header, « on the rail; remembered), leaving the
+width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
+not rebuild the renderer: run `npm run build` first or it tests the old bundle.
 
 **Multi-editor awareness** (last session): the renderer calls `site:sync`
 every 3 minutes and on window focus (if the last check is older than 30 s).

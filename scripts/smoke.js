@@ -44,6 +44,8 @@ const scenarios = [
 	// The typed text must reach the page Kirigami generated in the preview copy.
 	{ name: 'preview', screen: 'entry', open: 'src/_home.md', preview: true, type: '\nTyped in Kiri Studio.\n',
 		expect: { file: 'sites/local__site/preview/src/index.html', contains: 'Typed in Kiri Studio.' } },
+	// The preview folds to a rail and back; the app must report no error doing it.
+	{ name: 'preview-collapse', screen: 'entry', open: 'src/_home.md', preview: true, collapse: true },
 ];
 
 let failed = 0;
@@ -81,6 +83,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.add && { KIRI_STUDIO_SMOKE_ADD: scenario.add.join(path.delimiter) }),
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
+		...(scenario.collapse && { KIRI_STUDIO_SMOKE_COLLAPSE: '1' }),
 		...(scenario.pick && { KIRI_STUDIO_SMOKE_PICK: '1' }),
 		...(scenario.update && { KIRI_STUDIO_SMOKE_UPDATE: scenario.update }),
 	};

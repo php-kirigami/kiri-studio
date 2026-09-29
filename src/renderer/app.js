@@ -354,6 +354,16 @@ async function openSite(user, site, sites) {
 				await ws.preview.ready();
 				await new Promise((resolve) => setTimeout(resolve, 2000)); // page load
 			}
+			if (info.smokeCollapse) {
+				// Fold the preview to its rail, reopen it, fold it again (left
+				// folded for the screenshot); each step must change the layout.
+				const isFolded = () => layout.classList.contains('preview-collapsed');
+				const steps = [['.preview-collapse', true], ['.preview-rail', false], ['.preview-collapse', true]];
+				for (const [selector, folded] of steps) {
+					ws.preview.pane.querySelector(selector).click();
+					if (isFolded() !== folded) throw new Error(`Preview ${selector}: expected folded=${folded}`);
+				}
+			}
 			if (info.smokeType) {
 				await ws.smokeType?.(info.smokeType);
 				await new Promise((resolve) => setTimeout(resolve, 1200)); // let the checks run
