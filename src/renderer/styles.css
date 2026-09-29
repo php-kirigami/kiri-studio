@@ -291,7 +291,7 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .md-surface .cm-editor.cm-focused { outline: none; }
 .md-surface:focus-within { border-color: var(--accent); }
 .md-surface .cm-scroller { font-family: inherit; font-size: 1.0625rem; line-height: 1.7; }
-.md-surface .cm-content { padding: 1.5rem 2rem; max-width: 46rem; caret-color: var(--accent); outline: none; }
+.md-surface .cm-content { padding: 1.5rem 2rem; caret-color: var(--accent); outline: none; }
 .md-surface .cm-cursor { border-left-color: var(--accent); }
 .md-surface .cm-selectionBackground,
 .md-surface .cm-focused .cm-selectionBackground { background: var(--accent-soft) !important; }

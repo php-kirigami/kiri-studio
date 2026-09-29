@@ -45,7 +45,9 @@ const scenarios = [
 	{ name: 'preview', screen: 'entry', open: 'src/_home.md', preview: true, type: '\nTyped in Kiri Studio.\n',
 		expect: { file: 'sites/local__site/preview/src/index.html', contains: 'Typed in Kiri Studio.' } },
 	// The preview folds to a rail and back; the app must report no error doing it.
-	{ name: 'preview-collapse', screen: 'entry', open: 'src/_home.md', preview: true, collapse: true },
+	// A long typed paragraph shows in the screenshot that the text fills the editor.
+	{ name: 'preview-collapse', screen: 'entry', open: 'src/_home.md', preview: true, collapse: true,
+		type: `\n${'The editor text uses the whole width once the preview is folded away. '.repeat(6)}\n` },
 ];
 
 let failed = 0;
