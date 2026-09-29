@@ -45,7 +45,7 @@ win:
 nsis:
   oneClick: true
   perMachine: false
-  artifactName: Kiri-Studio-Setup-${version}-${arch}.${ext}
+  artifactName: kiri-studio-setup-${version}-${arch}.${ext}
 
 mac:
   target:
@@ -58,7 +58,7 @@ mac:
   identity: "-"
 
 dmg:
-  artifactName: Kiri-Studio-${version}-${arch}.${ext}
+  artifactName: kiri-studio-${version}-${arch}.${ext}
 
 linux:
   target:
@@ -68,4 +68,4 @@ linux:
       arch: [x64]
   category: Office
   maintainer: Maxime Larrivée-Roy <mlarriveeroy@gmail.com>
-  artifactName: Kiri-Studio-${version}-${arch}.${ext}
+  artifactName: kiri-studio-${version}-${arch}.${ext}
