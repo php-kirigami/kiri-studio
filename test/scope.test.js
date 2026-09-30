@@ -243,6 +243,16 @@ test('page media: images/ and videos/ next to a page are media folders, for its 
 	assert.equal(mediaRootOf(scope, 'src/course/images/x.png'), 'src/course/images');
 });
 
+test('page image: off unless studio.pageImage asks, and only with page media', (t) => {
+	const base = 'kirigami:\n  root: src\nstudio:\n  include:\n    - path: src/docs/**/_index.md\n';
+	const page = { 'src/docs/a/_index.md': '@title A\n\nText\n' };
+	const scopeOf = (extra) => buildScope(site(t, { 'kirigami.yaml': base + extra, ...page }));
+	assert.equal(scopeOf('  pageMedia: true\n').pageImage, false);
+	assert.equal(scopeOf('  pageImage: true\n').pageImage, false);
+	assert.equal(scopeOf('  pageMedia: true\n  pageImage: 1\n').pageImage, false);
+	assert.equal(scopeOf('  pageMedia: true\n  pageImage: true\n').pageImage, true);
+});
+
 test('page media: off unless studio.pageMedia asks; a list names other folders', (t) => {
 	const base = 'kirigami:\n  root: src\nstudio:\n  include:\n    - path: src/docs/**/_index.md\n';
 	const page = { 'src/docs/a/_index.md': '@title A\n\nText\n' };

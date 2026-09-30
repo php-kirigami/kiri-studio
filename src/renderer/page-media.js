@@ -11,8 +11,9 @@ import { IMAGE, VIDEO, formatSize, mediaUrl, playMedia, prepare, viewImage } fro
 const altOf = (name) => name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
 const flat = (node) => [...node.files, ...node.folders.flatMap(flat)];
 
-// Returns the panel, or null when this entry has none (feature off, or not a page).
-export function createPageMedia(ws, entry, editor) {
+// Returns the panel, or null when this entry has none (feature off, or not a page). `pageImage`
+// ({ get, set }, only with `studio.pageImage`) reads and writes the page's `@image` tag.
+export function createPageMedia(ws, entry, editor, pageImage = null) {
 	const names = ws.scope.pageMedia ?? [];
 	if (!names.length || !/(^|\/)_index\.md$/i.test(entry.path)) return null;
 
@@ -34,23 +35,30 @@ export function createPageMedia(ws, entry, editor) {
 		const trees = await Promise.all(names.map((name) => studio.media.tree(rootOf(name))));
 		files = trees.flatMap(flat).sort((a, b) => a.path.localeCompare(b.path));
 		count.textContent = files.length ? String(files.length) : '';
-		list.replaceChildren(...(files.length ? files.map(tile) : [h('li.page-media-empty', t('pageMedia.empty'))]));
+		render();
 	}
 
 	const relative = (file) => file.path.slice(dir.length + 1);
+	// `@image` takes a path from the site root (what og:image and <intlink> both understand).
+	const sitePath = (file) => (file.path.startsWith(`${ws.scope.root}/`) ? file.path.slice(ws.scope.root.length + 1) : file.path);
+	const canPick = Boolean(ws.scope.pageImage && pageImage);
+	const render = () => list.replaceChildren(...(files.length ? files.map(tile) : [h('li.page-media-empty', t('pageMedia.empty'))]));
 	const insert = (code) => insertBlock(editor.view, code);
 
 	async function remove(file) {
 		const used = await studio.media.usage(file.path);
+		const wasPageImage = canPick && pageImage.get() === sitePath(file);
 		const question = t('media.deleteConfirm', { name: file.name });
 		if (!confirm(used.length ? `${question}\n\n${t('media.usedBy', { pages: used.join(', ') })}` : question)) return;
 		ws.setChanges((await studio.media.delete(file.path)).changes);
+		if (wasPageImage) pageImage.set(null);
 		refresh();
 	}
 
 	function tile(file) {
 		const isImage = IMAGE.test(file.name);
 		const images = files.filter((f) => IMAGE.test(f.name));
+		const isPageImage = isImage && canPick && pageImage.get() === sitePath(file);
 		const thumb = isImage
 			? h('button.thumb-open', {
 				title: t('media.view'),
@@ -62,12 +70,19 @@ export function createPageMedia(ws, entry, editor) {
 				'aria-label': `${t('media.play')}: ${file.name}`,
 				onclick: () => playMedia(ws, file),
 			}, h('span.doc.playable', { dataset: { ext: file.name.split('.').pop().toUpperCase() } }));
-		return h('li.page-media-file', { dataset: { status: file.status ?? '' } },
+		return h('li.page-media-file', { dataset: { status: file.status ?? '', pageImage: isPageImage ? 'true' : '' } },
 			thumb,
 			h('span.page-media-name', { title: file.name }, h('strong', file.name), h('small', formatSize(file.size))),
 			h('span.page-media-actions',
 				isImage
-					? h('button.secondary', { onclick: () => insert(`![${altOf(file.name)}](${relative(file)})`) }, t('pageMedia.insert'))
+					? [
+						canPick && h('button.secondary', {
+							'aria-pressed': String(isPageImage),
+							title: t('pageMedia.pageImageHelp'),
+							onclick: () => { pageImage.set(isPageImage ? null : sitePath(file)); render(); },
+						}, isPageImage ? t('pageMedia.pageImageOn') : t('pageMedia.pageImage')),
+						h('button.secondary', { onclick: () => insert(`![${altOf(file.name)}](${relative(file)})`) }, t('pageMedia.insert')),
+					]
 					: [
 						h('button.secondary', { onclick: () => insert(`{% inline-clip ${relative(file)} %}`) }, t('pageMedia.insertLoop')),
 						h('button.secondary', { onclick: () => insert(`{% clip ${relative(file)} %}`) }, t('pageMedia.insertPlayer')),

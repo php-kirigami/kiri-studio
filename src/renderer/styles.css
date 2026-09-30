@@ -683,6 +683,7 @@ video.lightbox-media { background: #000; }
 .page-media-name small { color: var(--muted); }
 .page-media-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .page-media-actions .secondary { padding: 0.25rem 0.625rem; font-size: 0.875rem; }
+.page-media-actions .secondary[aria-pressed='true'] { border-color: var(--accent); background: var(--accent-soft); }
 .page-media-empty { color: var(--muted); }
 
 

@@ -50,6 +50,9 @@ the sync) or that are content of their own; `page-media.js` is the "Media of thi
 `{% inline-clip videos/x.mp4 %}` / `{% clip … %}` relative to the page, delete with the usage warning). Same drafts,
 same publish path. Tests: `scope` (page media), `collapse`; smoke `page-media`. The option is in core's schema
 (`packages/kirigami/kirigami.schema.json`), so a site can only set it with a core release that has it (> 3.2.1).
+`studio.pageImage` (off by default, needs `pageMedia`; unreleased, schema in core after 3.2.2): each image tile gets "Use as page image", which
+sets/clears the page's `@image` (site-root path, via the header object in `app.js`; deleting that image clears the tag). Unit test in
+`scope`; smoke `page-image`.
 Left for later: optimizing page images/videos at build time (an `encode` plugin), a "used by" count per file.
 
 **Markdown pages, folder and tree collections, page header form** (2026-09-30, **released as 0.4.0**; needs

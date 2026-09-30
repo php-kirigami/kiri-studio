@@ -454,6 +454,13 @@ async function openSite(user, site, sites) {
 				await ws.smokePageMedia(info.smokeFiles.map((f) => new File([f.bytes], f.name, { type: f.type })));
 				await new Promise((resolve) => setTimeout(resolve, 800)); // thumbnails
 			}
+			if (info.smokePageImage) {
+				// Smoke tests: pick the first image as the page image.
+				const pick = main.querySelector('.page-media-file [aria-pressed="false"]');
+				if (!pick) throw new Error('No "Use as page image" button');
+				pick.click();
+				await new Promise((resolve) => setTimeout(resolve, 1200)); // autosave
+			}
 			if (info.smokePreview) {
 				await ws.preview.ready();
 				await new Promise((resolve) => setTimeout(resolve, 2000)); // page load
@@ -691,7 +698,13 @@ async function showEntry(entry) {
 		h('div.entry-head', heading, saveState, discard, remove),
 		outdated,
 		fields,
-		isMarkdown && createPageMedia(ws, entry, editor),
+		isMarkdown && createPageMedia(ws, entry, editor, header && {
+			get: () => header.tags.find((tag) => tag.name === 'image' && !tag.inherited)?.value ?? '',
+			set(value) {
+				header = value === null ? removeTag(header, 'image') : setTag(header, 'image', value);
+				onChange(current());
+			},
+		}),
 		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),

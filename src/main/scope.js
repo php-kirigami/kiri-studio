@@ -156,6 +156,8 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	return {
 		pageTypes,
 		pageMedia,
+		// Lets the client pick a page's `@image` from its media. Off unless the site asks, and only with page media.
+		pageImage: studio.pageImage === true && pageMedia.length > 0,
 		content: [...content.values()],
 		collections,
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),

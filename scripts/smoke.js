@@ -28,6 +28,10 @@ const scenarios = [
 	{ name: 'page-media', screen: 'entry', open: 'src/guide/ordering/_index.md',
 		add: [path.join(fixture, 'assets', 'images', 'storefront.png'), path.join(root, 'test', 'fixtures', 'media', 'clip.mp4')],
 		expect: { file: 'sites/local__site/drafts/files/src/guide/ordering/images/storefront.png', contains: 'PNG' } },
+	// studio.pageImage: "Use as page image" writes the page's @image (a path from the site root).
+	{ name: 'page-image', screen: 'entry', open: 'src/guide/ordering/_index.md', pageImage: true,
+		add: [path.join(fixture, 'assets', 'images', 'storefront.png')],
+		expect: { file: 'sites/local__site/drafts/files/src/guide/ordering/_index.md', contains: '@image guide/ordering/images/storefront.png' } },
 	// A Markdown page: its @tag header shows as a form above the text.
 	// Typing in the text saves the header back untouched, followed by the body.
 	{ name: 'page-header', screen: 'entry', open: 'src/news/first-bake/_index.md', type: '\nTyped under the header.\n',
@@ -107,6 +111,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.type && { KIRI_STUDIO_SMOKE_TYPE: scenario.type }),
 		...(scenario.add && { KIRI_STUDIO_SMOKE_ADD: scenario.add.join(path.delimiter) }),
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
+		...(scenario.pageImage && { KIRI_STUDIO_SMOKE_PAGE_IMAGE: '1' }),
 		...(scenario.play && { KIRI_STUDIO_SMOKE_PLAY: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
 		...(scenario.collapse && { KIRI_STUDIO_SMOKE_COLLAPSE: '1' }),

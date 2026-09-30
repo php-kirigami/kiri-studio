@@ -68,6 +68,7 @@ ipcMain.handle('app:info', () => ({
 	smokePlay: !!process.env.KIRI_STUDIO_SMOKE_PLAY,
 	smokePreview: !!process.env.KIRI_STUDIO_SMOKE_PREVIEW,
 	smokeCollapse: !!process.env.KIRI_STUDIO_SMOKE_COLLAPSE,
+	smokePageImage: !!process.env.KIRI_STUDIO_SMOKE_PAGE_IMAGE,
 	smokePublish: !!process.env.KIRI_STUDIO_SMOKE_PUBLISH,
 	smokePick: !!process.env.KIRI_STUDIO_SMOKE_PICK, // show the site list even with one site
 	// Smoke tests: local files to add in the opened media manager.
