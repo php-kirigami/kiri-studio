@@ -46,7 +46,7 @@ contextBridge.exposeInMainWorld('studio', {
 	},
 	collections: {
 		files: (pattern) => ipcRenderer.invoke('collection:files', pattern),
-		create: (pattern, title) => ipcRenderer.invoke('collection:create', pattern, title),
+		create: (pattern, title, parent = null) => ipcRenderer.invoke('collection:create', pattern, title, parent),
 		delete: (path) => ipcRenderer.invoke('collection:delete', path),
 	},
 	media: {

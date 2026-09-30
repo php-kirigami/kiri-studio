@@ -3,6 +3,8 @@
 // GitHub or the site is only ever set as text, never as HTML.
 import { changeCount, setLocale, t } from './i18n.js';
 import { actions, createMarkdownEditor, insertBlock } from './markdown-editor.js';
+import { createPageFields } from './page-fields.js';
+import { joinHeader, removeTag, setTag, splitHeader } from '../shared/md-header.js';
 import { createDataEditor } from './data-editor.js';
 import { h } from './dom.js';
 import { ask, imageCode, pickImage, showMedia } from './media-view.js';
@@ -237,28 +239,49 @@ async function openSite(user, site, sites) {
 	};
 
 	// A collection lists its files live (new and deleted ones included); when
-	// it allows it, "+" creates a file from a title and opens it.
+	// it allows it, "+" creates a file from a title and opens it. A tree
+	// collection nests pages under their parent, each with its own "+" for a
+	// sub-page.
 	let loading = [];
 	const collectionSection = (collection) => {
 		const list = h('ul');
+		const state = { ...collection, files: [] };
+		const create = async (parent = null) => {
+			const parentLabel = parent && state.files.find((f) => f.path === parent)?.label;
+			const title = await ask(parent ? t('collection.newChildTitle', { label: parentLabel }) : t('collection.newTitle'));
+			if (!title) return;
+			const created = await studio.collections.create(collection.pattern, title, parent);
+			ws.setChanges(created.changes);
+			render(created.path);
+		};
+		const item = (entry, children) => {
+			const addChild = collection.tree && collection.creatable && h('button.add.add-child', {
+				title: t('collection.newChild'),
+				'aria-label': `${t('collection.newChild')} (${entry.label})`,
+				onclick: () => create(entry.path),
+			});
+			const kids = children(entry.path);
+			return h('li', h('div.entry-row', entryButton(entry), addChild), kids.length > 0 && h('ul.subpages', kids));
+		};
 		const render = async (open) => {
 			const files = await studio.collections.files(collection.pattern);
-			list.replaceChildren(...files.map((entry) => h('li', entryButton(entry))));
+			state.files = files;
+			if (collection.tree) {
+				const children = (parent) => files.filter((f) => f.parent === parent).map((f) => item(f, children));
+				list.replaceChildren(...children(null));
+			} else {
+				list.replaceChildren(...files.map((entry) => h('li', entryButton(entry))));
+			}
 			ws.setChanges([...ws.changes]);
 			if (open) list.querySelector(`[data-path="${CSS.escape(open)}"]`)?.click();
 		};
 		const add = collection.creatable && h('button.add', {
 			title: t('collection.new'),
 			'aria-label': t('collection.new'),
-			onclick: async () => {
-				const title = await ask(t('collection.newTitle'));
-				if (!title) return;
-				const created = await studio.collections.create(collection.pattern, title);
-				ws.setChanges(created.changes);
-				render(created.path);
-			},
+			onclick: () => create(),
 		});
-		ws.collections.set(collection.pattern, { ...collection, render });
+		state.render = render;
+		ws.collections.set(collection.pattern, state);
 		loading.push(render());
 		return h('section.group', h('div.group-head', h('h2', collection.label), add), list);
 	};
@@ -466,9 +489,21 @@ async function showEntry(entry) {
 
 	// Files of a collection that allows it can be deleted.
 	const collection = [...ws.collections.values()].find((c) => c.creatable && pathMatches(entry.path, c.pattern));
+	// A page in its own folder goes with its sub-pages (the confirmation says
+	// how many); the top page of a tree holds the whole collection, so it waits
+	// until its sub-pages are gone.
+	const dir = entry.path.slice(0, entry.path.lastIndexOf('/'));
+	const base = collection?.pattern.replace(/\/\*\*?\/_index\.md$/i, '');
+	const subpages = collection?.files.filter((f) => f.path !== entry.path && f.path.startsWith(`${dir}/`)).length ?? 0;
+	const blocked = subpages > 0 && dir === base;
 	const remove = collection && h('button.link.danger', {
+		disabled: blocked,
+		title: blocked ? t('collection.hasChildren') : null,
 		onclick: async () => {
-			if (!confirm(t('collection.deleteConfirm', { label: entry.label }))) return;
+			const question = subpages > 0
+				? t(subpages === 1 ? 'collection.deleteTreeConfirmOne' : 'collection.deleteTreeConfirm', { label: entry.label, count: subpages })
+				: t('collection.deleteConfirm', { label: entry.label });
+			if (!confirm(question)) return;
 			clearTimeout(timer);
 			pending = null;
 			editor.destroy();
@@ -506,8 +541,18 @@ async function showEntry(entry) {
 	const surface = h(isMarkdown ? 'div.md-surface' : 'div.data-surface');
 	let editor;
 	let help = null;
+	// A Markdown page's `@tag` header is edited in a form above the text; the
+	// editor only holds the body, and saving puts both back together.
+	let header = isMarkdown ? splitHeader(file.text) : null;
+	const current = () => (header ? joinHeader(header, editor.view.state.doc.toString()) : editor.view.state.doc.toString());
+	const heading = h('h1', entry.label);
+	const fields = header && createPageFields(header, (name, value) => {
+		header = value === null ? removeTag(header, name) : setTag(header, name, value);
+		if (name === 'title' && value?.trim()) heading.textContent = value.trim();
+		onChange(current());
+	}, { types: ws.scope.pageTypes ?? [] });
 	if (isMarkdown) {
-		editor = createMarkdownEditor(surface, { text: file.text, onChange });
+		editor = createMarkdownEditor(surface, { text: header ? header.body : file.text, onChange: () => onChange(current()) });
 	} else {
 		const schema = await studio.data.schema(entry.path);
 		const problems = h('button.problems', { dataset: { count: '0' } });
@@ -555,7 +600,7 @@ async function showEntry(entry) {
 	// the new text; one the client changed keeps their text, and says so if
 	// someone else published it in the meantime (theirs wins on publish).
 	const outdated = h('p.notice.outdated', { hidden: !file.outdated }, t('editor.outdated'));
-	const untouched = () => pending === null && !ws.changes.has(entry.path) && editor.view.state.doc.toString() === file.text;
+	const untouched = () => pending === null && !ws.changes.has(entry.path) && current() === file.text;
 	const view = {
 		// Makes sure what was just typed is in the drafts (before publishing).
 		flush,
@@ -585,8 +630,9 @@ async function showEntry(entry) {
 
 	const mod = navigator.platform.startsWith('Mac') ? '⌘' : 'Ctrl+';
 	main.replaceChildren(...[
-		h('div.entry-head', h('h1', entry.label), saveState, discard, remove),
+		h('div.entry-head', heading, saveState, discard, remove),
 		outdated,
+		fields,
 		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),
@@ -612,10 +658,12 @@ async function insertImage(view) {
 	else view.focus();
 }
 
-// "src/blog/post.md" against "src/blog/*.md" — enough glob for collection
-// patterns in the renderer (the main process decides what is allowed).
+// "src/blog/post.md" against "src/blog/*.md", "src/docs/a/b/_index.md"
+// against "src/docs/**/_index.md" — enough glob for collection patterns in
+// the renderer (the main process decides what is allowed).
 function pathMatches(rel, pattern) {
-	const re = pattern.split('*').map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('[^/]*');
+	const escape = (part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+	const re = pattern.split('**/').map((piece) => piece.split('*').map(escape).join('[^/]*')).join('(?:.*/)?');
 	return new RegExp(`^${re}$`).test(rel);
 }
 

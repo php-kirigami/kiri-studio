@@ -96,6 +96,7 @@ studio:
 		pattern: 'src/blog/*.md',
 		label: 'Blog posts',
 		create: true,
+		header: {},
 		files: [
 			{ path: 'src/blog/first-post.md', label: 'First post', group: null, page: null, kind: 'markdown', schema: null },
 			{ path: 'src/blog/second-post.md', label: 'Second post', group: null, page: null, kind: 'markdown', schema: null },
@@ -179,4 +180,38 @@ test('content remembers the page that loads it, for the preview', (t) => {
 		'src/about/_about.md': '# About',
 	});
 	assert.equal(buildScope(dir).content[0].page, 'src/about/_index.php');
+});
+
+test('Markdown pages: an _index.md with an @tag header is a page and its own content', (t) => {
+	const dir = site(t, {
+		'kirigami.yaml': 'kirigami:\n  root: src\nstudio:\n  include:\n    - path: src/posts/*/_index.md\n      create: true\n',
+		'src/_index.php': '<?php\n/**\n * @title Home\n * @@menu _menu.yaml\n */',
+		'src/_menu.yaml': '- a\n',
+		'src/notes/_index.md': '@title Notes\n@list _list.yaml\n\nText',
+		'src/notes/_list.yaml': '- b\n',
+		'src/plain/_index.md': 'No header: data, not a page',
+		'src/about/_index.php': '<?php\n/**\n * @title About\n * @body _index.md\n */',
+		'src/about/_index.md': '@title Data\n\nNext to an _index.php it is data',
+		'src/posts/hello/_index.md': '@title Hello\n\nPost',
+	});
+	const scope = buildScope(dir);
+	assert.deepEqual(scope.content.map(({ path, label, group, page }) => ({ path, label, group, page })), [
+		{ path: 'src/_menu.yaml', label: 'Menu', group: 'Home', page: 'src/_index.php' },   // @@menu is discovered too
+		{ path: 'src/about/_index.md', label: 'Body', group: 'About', page: 'src/about/_index.php' },
+		{ path: 'src/notes/_index.md', label: 'Notes', group: 'Notes', page: 'src/notes/_index.md' },
+		{ path: 'src/notes/_list.yaml', label: 'List', group: 'Notes', page: 'src/notes/_index.md' },
+	]);
+	// A folder collection's posts are listed there only, named after their folder.
+	assert.deepEqual(scope.collections.map(({ label, files }) => ({ label, files: files.map((f) => [f.path, f.label]) })), [
+		{ label: 'Posts', files: [['src/posts/hello/_index.md', 'Hello']] },
+	]);
+	assert.equal(isPage('notes/_index.md'), false, 'without a reader only PHP pages are known');
+});
+
+test('pageTypes: the prepros.types a client may pick, narrowed or hidden by studio.types', (t) => {
+	const base = 'kirigami:\n  root: src\nprepros:\n  types:\n    post: { before: a.php }\n    note: { before: b.php }\n';
+	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': `${base}studio: {}\n` })).pageTypes, ['post', 'note']);
+	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': `${base}studio:\n  types: [note, missing]\n` })).pageTypes, ['note']);
+	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': `${base}studio:\n  types: false\n` })).pageTypes, []);
+	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': 'kirigami:\n  root: src\nstudio: {}\n' })).pageTypes, []);
 });

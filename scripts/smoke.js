@@ -21,6 +21,13 @@ fs.mkdirSync(outDir, { recursive: true });
 const only = process.env.SMOKE_ONLY;
 const scenarios = [
 	{ name: 'markdown', screen: 'entry', open: 'src/_home.md', type: '\nAdded by the smoke test.\n' },
+	// A tree collection: sub-pages nest; the page's type is picked from prepros.types.
+	{ name: 'page-tree', screen: 'entry', open: 'src/guide/ordering/_index.md', locale: 'fr' },
+	// A Markdown page: its @tag header shows as a form above the text.
+	// Typing in the text saves the header back untouched, followed by the body.
+	{ name: 'page-header', screen: 'entry', open: 'src/news/first-bake/_index.md', type: '\nTyped under the header.\n',
+		expect: { file: 'sites/local__site/drafts/files/src/news/first-bake/_index.md',
+			contains: '@title    The first bake\n@date     2026-09-01\n@abstract We lit the new oven for the first time.\n@tags     oven, bread\n@draft    false\n\nThe loaves came out **golden**.\n\nTyped under the header.\n' } },
 	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },

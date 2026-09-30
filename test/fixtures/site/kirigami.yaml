@@ -4,13 +4,32 @@ kirigami:
   baseurl: https://example.com
   root:    src
 
-prepros: {}
+prepros:
+  types:
+    article:
+      before: _layouts/article.before.php
+      after:  _layouts/article.after.php
+    wide:
+      before: _layouts/wide.before.php
+      after:  _layouts/wide.after.php
 
 studio:
   files: src/documents
   include:
     - path: src/blog/*.md
       label: Blog
+      create: true
+    # One folder per entry, each a Markdown page with an @tag header.
+    - path: src/news/*/_index.md
+      label: News
+      create: true
+      header:
+        date: today
+        abstract: ""
+        draft: "false"
+    # A tree: every page can get sub-pages.
+    - path: src/guide/**/_index.md
+      label: Guide
       create: true
   labels:
     src/_home.md: Welcome text

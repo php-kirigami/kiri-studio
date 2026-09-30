@@ -9,7 +9,7 @@ import { createClient } from './github.js';
 import { INSTALL_URL, listSites } from './sites.js';
 import { readSyncState, syncSite } from './sync.js';
 import { buildScope, inScope, isExcluded, mediaRootOf, readStudioConfig, schemaResolver } from './scope.js';
-import { createCollections, creationTarget } from './collections.js';
+import { createCollections, creationTarget, isTree } from './collections.js';
 import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
@@ -173,7 +173,10 @@ ipcMain.handle('sites:list', async () => {
 // Rebuilt whenever the synced copy changes.
 function loadScope(treeDir, drafts) {
 	const scope = buildScope(treeDir);
-	for (const collection of scope.collections) collection.creatable = collection.create && !!creationTarget(collection.pattern);
+	for (const collection of scope.collections) {
+		collection.creatable = collection.create && !!creationTarget(collection.pattern);
+		collection.tree = isTree(collection.pattern);
+	}
 	const excluded = (rel) => isExcluded(scope.exclude, rel);
 	return {
 		scope,
@@ -348,8 +351,8 @@ ipcMain.handle('preview:stop', () => current?.preview.stop());
 
 ipcMain.handle('collection:files', (_event, pattern) => current.collections.files(pattern));
 
-ipcMain.handle('collection:create', (_event, pattern, title) => ({
-	path: current.collections.create(pattern, String(title)),
+ipcMain.handle('collection:create', (_event, pattern, title, parent = null) => ({
+	path: current.collections.create(pattern, String(title), typeof parent === 'string' ? parent : null),
 	changes: changes(),
 }));
 

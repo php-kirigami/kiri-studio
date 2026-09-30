@@ -9,28 +9,32 @@
 //
 // Page discovery and annotation parsing mirror Kirigami exactly: a page is a
 // `_*.php` file under kirigami.root with no `_`-prefixed folder on its path
-// (core's isPage()); annotations come from the file's first doc comment, parsed
-// like php-prepros's FS::parseDocBlock(); a data value is resolved against the
-// page's folder, like php-prepros's `page_info` hook. All returned paths are
-// POSIX, relative to the repository root.
+// (core's isPage()), or an `_index.md` starting with an `@tag` header in a
+// folder with no `_index.php`; annotations come from the file's first doc
+// comment, parsed like php-prepros's FS::parseDocBlock() (`@@tag` included),
+// or from the Markdown header (FS::splitHeader(), see shared/md-header.js); a
+// data value is resolved against the page's folder, like php-prepros's
+// `page_info` hook. A Markdown page is itself editable content. All returned
+// paths are POSIX, relative to the repository root.
 import fs from 'node:fs';
 import path from 'node:path';
 import * as yaml from 'yaml';
 import { lfsPatterns } from '../shared/lfs.js';
+import { headerInfo } from '../shared/md-header.js';
 
 const DATA_EXTS = new Set(['.md', '.yaml', '.yml', '.json']);
 const URL_RE = /^[a-z][a-z0-9+.-]*:\/\//i;
 const GLOB_RE = /[*?[\]{}]/;
 
-// Port of php-prepros FS::parseDocBlock(): `@tag value` lines; a value wraps
-// onto indented continuation lines, up to the next tag, a blank line, or a
-// flush-left prose line.
+// Port of php-prepros FS::parseDocBlock(): `@tag value` (or `@@tag value`)
+// lines; a value wraps onto indented continuation lines, up to the next tag,
+// a blank line, or a flush-left prose line.
 export function parseDocBlock(block) {
 	const info = {};
 	let current = null;
 	for (let line of block.split(/\r\n|\r|\n/)) {
 		line = line.replace(/^\s*\/\*\*+/, '').replace(/\s*\*\/\s*$/, '').replace(/^[ \t]*\*[ \t]?/, '');
-		const tag = /^@([A-Za-z0-9_]+)[ \t]*(.*)$/.exec(line);
+		const tag = /^@@?([A-Za-z0-9_]+)[ \t]*(.*)$/.exec(line);
 		if (tag) {
 			current = tag[1];
 			info[current] = tag[2].trim();
@@ -54,10 +58,16 @@ export function firstDocBlock(source) {
 }
 
 // Same rule as core's isPage(): relative to kirigami.root, POSIX separators.
-export function isPage(rel) {
+// `read(name)` (optional) reads a file of the page's folder, null if missing,
+// for the Markdown rule: an `_index.md` with an `@tag` header and no
+// `_index.php` next to it (otherwise the `.md` is data).
+export function isPage(rel, read = null) {
 	const parts = rel.split('/');
 	const name = parts.pop();
-	return /^_.*\.php$/i.test(name) && !parts.some((part) => part.startsWith('_'));
+	if (parts.some((part) => part.startsWith('_'))) return false;
+	if (/^_.*\.php$/i.test(name)) return true;
+	if (!read || !/^_index\.md$/i.test(name) || read('_index.php') !== null) return false;
+	return Object.keys(headerInfo(read(name) ?? '')).length > 0;
 }
 
 export function readStudioConfig(treeDir) {
@@ -89,12 +99,21 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		content.set(rel, entry(rel, label, group, page));
 	};
 
+	// Markdown pages a collection lists (`src/posts/*/_index.md`) show there,
+	// not a second time as page content.
+	const globs = (studio.include ?? []).map((item) => (typeof item === 'string' ? item : item.path)).filter((p) => GLOB_RE.test(p));
+	const inCollection = (rel) => globs.some((glob) => path.posix.matchesGlob(rel, toPosix(glob)));
+	const sibling = (rel) => (name) => readOptional(path.join(treeDir, path.posix.dirname(rel), name), null);
+
 	// Page-referenced content, grouped under the page's title.
-	for (const pageRel of walk(treeDir, root, (rel) => isPage(path.posix.relative(root, rel)))) {
-		const block = firstDocBlock(fs.readFileSync(path.join(treeDir, pageRel), 'utf8'));
-		if (!block) continue;
-		const info = parseDocBlock(block);
+	for (const pageRel of walk(treeDir, root, (rel) => isPage(path.posix.relative(root, rel), sibling(rel)))) {
+		const source = fs.readFileSync(path.join(treeDir, pageRel), 'utf8');
+		const isMarkdown = /\.md$/i.test(pageRel);
+		const block = isMarkdown ? null : firstDocBlock(source);
+		if (!isMarkdown && !block) continue;
+		const info = isMarkdown ? headerInfo(source) : parseDocBlock(block);
 		const title = info.title || pageTitle(path.posix.relative(root, pageRel));
+		if (isMarkdown && !inCollection(pageRel)) add(pageRel, title, title, pageRel);
 		for (const [tag, value] of Object.entries(info)) {
 			if (!DATA_EXTS.has(path.posix.extname(value).toLowerCase()) || URL_RE.test(value)) continue;
 			const rel = path.posix.normalize(path.posix.join(path.posix.dirname(pageRel), value));
@@ -105,7 +124,7 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	// `include`: single files join the content list; globs become collections.
 	const collections = [];
 	for (const item of studio.include ?? []) {
-		const { path: pattern, label, create = false } = typeof item === 'string' ? { path: item } : item;
+		const { path: pattern, label, create = false, header = {} } = typeof item === 'string' ? { path: item } : item;
 		if (!GLOB_RE.test(pattern)) {
 			add(pattern, label ?? humanize(path.posix.basename(pattern, path.posix.extname(pattern))), null);
 			continue;
@@ -114,12 +133,22 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 			.map(toPosix)
 			.filter((rel) => DATA_EXTS.has(path.posix.extname(rel).toLowerCase()) && !excluded(rel) && isFile(rel))
 			.sort()
-			.map((rel) => entry(rel, humanize(path.posix.basename(rel, path.posix.extname(rel)))));
-		collections.push({ pattern, label: label ?? humanize(path.posix.dirname(pattern).split('/').pop()), create, files });
+			.map((rel) => entry(rel, (/\.md$/i.test(rel) && headerInfo(readOptional(path.join(treeDir, rel))).title) || humanize(fileStem(rel))));
+		// A folder collection ("src/posts/*/_index.md", "src/docs/**/_index.md")
+		// is named after the folder above the "*".
+		const folder = path.posix.dirname(pattern.replace(/\/\*\*?\/_index\.md$/i, '/_index.md'));
+		collections.push({ pattern, label: label ?? humanize(folder.split('/').pop()), create, header: header && typeof header === 'object' ? header : {}, files });
 	}
 
 	const imagesDir = studio.images === false ? null : toPosix(studio.images ?? config.image?.source ?? 'assets/images');
+	// Page types a client may pick for a Markdown page: the site's
+	// `prepros.types`, narrowed by `studio.types` (a list), or none with `false`.
+	const defined = Object.keys(config.prepros?.types ?? {});
+	const pageTypes = studio.types === false ? []
+		: Array.isArray(studio.types) ? defined.filter((name) => studio.types.includes(name))
+		: defined;
 	return {
+		pageTypes,
 		content: [...content.values()],
 		collections,
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),
@@ -135,8 +164,8 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	};
 }
 
-function readOptional(file) {
-	try { return fs.readFileSync(file, 'utf8'); } catch { return ''; }
+function readOptional(file, missing = '') {
+	try { return fs.readFileSync(file, 'utf8'); } catch { return missing; }
 }
 
 // A path matches an `exclude` pattern, or lies inside a folder that does.
@@ -188,6 +217,12 @@ function* walk(treeDir, rel, accept) {
 	const child = (entry) => (rel === '.' ? entry.name : `${rel}/${entry.name}`);
 	for (const entry of entries) if (entry.isFile() && accept(child(entry))) yield child(entry);
 	for (const entry of entries) if (entry.isDirectory()) yield* walk(treeDir, child(entry), accept);
+}
+
+// "src/blog/post.md" → "post"; "src/posts/hello/_index.md" → "hello".
+function fileStem(rel) {
+	const stem = path.posix.basename(rel, path.posix.extname(rel));
+	return stem.toLowerCase() === '_index' ? path.posix.basename(path.posix.dirname(rel)) : stem;
 }
 
 const kindOf = (rel) => (path.posix.extname(rel).toLowerCase() === '.md' ? 'markdown' : 'data');

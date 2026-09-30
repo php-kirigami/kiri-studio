@@ -249,6 +249,36 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .save-state[data-state="saved"]::before { content: "✓ "; color: var(--accent); }
 .discard { font-size: 0.875rem; }
 
+/* A Markdown page's header, as a form (page-fields.js) */
+.page-fields {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+	gap: 0.75rem 1rem;
+	margin-bottom: 1rem;
+	padding: 0.875rem 1rem;
+	background: var(--panel);
+	border: var(--hair) solid var(--line);
+	border-radius: var(--radius);
+}
+.page-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.page-field[data-name="title"],
+.page-field:has(textarea) { grid-column: 1 / -1; }
+.page-field label { font-size: 0.875rem; font-weight: 600; }
+.page-field small { font-size: 0.8125rem; color: var(--muted); }
+.page-field input,
+.page-field select,
+.page-field textarea {
+	font: inherit;
+	padding: 0.4rem 0.6rem;
+	color: var(--ink);
+	background: var(--paper);
+	border: var(--hair) solid var(--line);
+	border-radius: var(--radius);
+	resize: vertical;
+}
+.page-field[data-name="title"] input { font-size: 1.125rem; font-weight: 600; }
+.page-field.check { flex-direction: row; align-items: center; gap: 0.5rem; font-size: 0.9375rem; }
+
 .toolbar {
 	position: sticky;
 	top: -2rem;
@@ -526,6 +556,23 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .add { width: 1.75rem; height: 1.75rem; padding: 0; border-radius: 50%; color: var(--accent); border-color: var(--line); }
 .add::before { content: "+"; font-size: 1.125rem; line-height: 1; }
 .add:hover { background: var(--accent-soft); border-color: var(--accent); }
+
+/* Tree collections: sub-pages nest under their page, each row with a small "+" */
+.entry-row { display: flex; align-items: center; gap: 0.25rem; }
+.entry-row .entry { flex: 1; min-width: 0; }
+.add-child { width: 1.375rem; height: 1.375rem; flex: none; opacity: 0; }
+.add-child::before { font-size: 0.9375rem; }
+.entry-row:hover .add-child,
+.entry-row:focus-within .add-child,
+.entry-row:has([aria-current]) .add-child { opacity: 1; }
+.subpages {
+	display: grid;
+	gap: 0.125rem;
+	margin: 0.125rem 0 0 0.875rem;
+	padding-left: 0.5rem;
+	border-left: var(--hair) solid var(--line);
+}
+.link.danger[disabled] { opacity: 0.5; cursor: not-allowed; text-decoration: none; }
 .avatar.initial { display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 700; }
 
 /* Image viewer and picker */

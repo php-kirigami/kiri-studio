@@ -39,6 +39,27 @@ rail on the right (» in its header, « on the rail; remembered), leaving the
 width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
 not rebuild the renderer: run `npm run build` first or it tests the old bundle.
 
+**Markdown pages, folder and tree collections, page header form** (2026-09-30, unreleased;
+needs core with Markdown pages, committed in the monorepo, not released yet). Follows core's new
+rules: an `_index.md` starting with `@tag` lines (no `_index.php` next to it) is a page, `@@tag`
+passes a value down. `src/shared/md-header.js` reads/rewrites that header exactly like
+php-prepros's `FS::splitHeader()` (untouched header = identical bytes; editing a field rewrites
+only its line). `scope.js`: such pages are content of their own (unless a collection lists them),
+`@@` data annotations are discovered, `pageTypes` = `prepros.types` narrowed by `studio.types`
+(list, or `false`). Collections (`collections.js`), only with `create: true`:
+`<folder>/*/_index.md` creates `<folder>/<slug>/_index.md` (never an existing folder) with `@title`
++ the collection's `header` defaults (`today` → date); `<folder>/**/_index.md` is a tree: files
+carry `parent`, the sidebar nests them with a "+" per page for a sub-page (`create(pattern, title,
+parent)`). Deleting a page of an `_index.md` collection removes its whole folder (sub-pages, files
+next to it), with a count in the confirmation; the top page of a tree waits until it has no
+sub-pages. Labels come from `@title`. The editor shows the header as a form above the text
+(`page-fields.js`: date picker, checkbox for true/false, textarea for abstract, "Page layout"
+select with "Default" = no own `@type`); technical tags (`type`, `content`, `_` names, `@@`) stay
+hidden. Tests: `md-header`, `scope`, `collections`; smoke `page-header` (checks the saved draft
+keeps the header byte for byte) and `page-tree` (fixture: `src/news/*/_index.md`,
+`src/guide/**/_index.md`, two `prepros.types`). Not tried on a real site yet (template-blog is the
+candidate once core is released).
+
 **Audio and video in the documents manager** (2026-09-30, unreleased). A file of a
 playable type (mp3, m4a, aac, wav, flac, ogg/oga/opus; mp4, m4v, webm, ogv, mov) shows
 a "▶ MP3" tile and opens in a player dialog (`playMedia()` in `media-view.js`, a
