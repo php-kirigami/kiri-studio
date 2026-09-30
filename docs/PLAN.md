@@ -39,7 +39,7 @@ rail on the right (» in its header, « on the rail; remembered), leaving the
 width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
 not rebuild the renderer: run `npm run build` first or it tests the old bundle.
 
-**Sidebar folding and per-page media** (2026-09-30, after 0.4.0, unreleased). The sidebar folds by section
+**Sidebar folding and per-page media** (2026-09-30, **released as 0.5.0**). The sidebar folds by section
 (content groups, collections, media) and by tree page that has sub-pages (`collapse.js`: choices remembered per site in
 localStorage, never required; sections start open, pages with sub-pages closed; selecting or creating a page opens the
 folds above it; a folded branch shows the "unpublished changes" dot). `studio.pageMedia` (off by default; `true` =
@@ -49,8 +49,8 @@ the sync) or that are content of their own; `page-media.js` is the "Media of thi
 (thumbnails, add by drop or pick with the usual resize, size limit from `lfs.js`, insert `![alt](images/x.png)` /
 `{% inline-clip videos/x.mp4 %}` / `{% clip … %}` relative to the page, delete with the usage warning). Same drafts,
 same publish path. Tests: `scope` (page media), `collapse`; smoke `page-media`. The option is in core's schema
-(`packages/kirigami/kirigami.schema.json`), so a site can only set it with a core release that has it (> 3.2.1).
-`studio.pageImage` (off by default, needs `pageMedia`; unreleased, schema in core after 3.2.2): each image tile gets "Use as page image", which
+(`packages/kirigami/kirigami.schema.json`), so a site can only set it with a core release that has it (`pageMedia`: 3.2.2; `pageImage`: 3.2.3).
+`studio.pageImage` (off by default, needs `pageMedia` and core 3.2.3; released as 0.5.0): each image tile gets "Use as page image", which
 sets/clears the page's `@image` (site-root path, via the header object in `app.js`; deleting that image clears the tag). Unit test in
 `scope`; smoke `page-image`.
 Left for later: optimizing page images/videos at build time (an `encode` plugin), a "used by" count per file.
@@ -78,7 +78,7 @@ scope, the "Posts" collection (`studio:` block of the template), creating a post
 preview all work; the preview now navigates to the open `_index.md` page (`page` on collection entries,
 `pagePath` knows `.md`). Then checked by the maintainer with a real GitHub account and the App (2026-09-30): OK.
 
-**Audio and video in the documents manager** (2026-09-30, unreleased). A file of a
+**Audio and video in the documents manager** (2026-09-30, **released as 0.5.0**). A file of a
 playable type (mp3, m4a, aac, wav, flac, ogg/oga/opus; mp4, m4v, webm, ogv, mov) shows
 a "▶ MP3" tile and opens in a player dialog (`playMedia()` in `media-view.js`, a
 `<audio>`/`<video>` with controls; a codec the app can't play shows a note instead of a
