@@ -87,15 +87,18 @@ step).
    `updates.js`.
 
 **Known gaps / gotchas:**
-- The preview runs the site's own Kirigami (e.g. published 3.0.2), which
-  rejects `studio:` (the preview copy strips it) and still re-renders a
-  changed data file's *directory* instead of the pages that load it: fixed in
-  the monorepo (`f486d3e`, unreleased). Until a core release, preview of
-  sites with data under `src/_data/` (humainhumain) won't refresh on data
-  edits.
-- Unreleased core commits the app relies on (monorepo `main`, not pushed):
-  `studio:` block + `schemas` + `imageWidth`, `internal/tar` with file modes,
-  watch data→pages map. humainhumain testing waits for that release.
+- The preview runs the site's own Kirigami, so a site needs core **3.1.1 or
+  newer** (published 2026-09-29): it accepts the `studio:` block, and a
+  changed data file re-renders the pages that load it (before, the whole
+  directory). humainhumain is on `^3.1.1` with its `studio:` block, so its
+  preview refreshes on data edits. With an older core the preview copy still
+  strips `studio:`, but a data edit re-renders more than it should.
+- The core commits the app relies on (`studio:` block + `schemas` +
+  `imageWidth`, `internal/tar` with file modes, the watch data→pages map) are
+  released in core 3.1.0/3.1.1. Core 3.1.2 (2026-09-30) adds HTTP Range
+  requests to the preview server, so `<audio>`/`<video>` of a page can be
+  seeked in the preview (plugin-player, plugin-clip). Not checked inside the
+  app itself, only against the core's dev server.
 - Shell quoting: backslashes and quotes in `node -e`/`sed` one-liners got
   mangled repeatedly; use the Edit tool for code with regexes or `\n`.
 
