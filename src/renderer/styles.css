@@ -584,6 +584,45 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .entry-row:hover .add-child,
 .entry-row:focus-within .add-child,
 .entry-row:has([aria-current]) .add-child { opacity: 1; }
+
+/* Folding: a chevron before a section title, or before a page that has sub-pages.
+   `display` on these lists would otherwise win over the hidden attribute. */
+.group > ul[hidden],
+.subpages[hidden] { display: none; }
+.group-toggle { display: flex; flex: 1; align-items: center; gap: 0.375rem; min-width: 0; padding: 0; background: none; border: 0; text-align: left; cursor: pointer; }
+.twisty { position: relative; display: grid; place-items: center; width: 1.375rem; height: 1.375rem; flex: none; padding: 0; background: none; border: 0; border-radius: var(--radius); }
+button.twisty { cursor: pointer; }
+button.twisty:hover { background: var(--line); }
+.group-toggle::before,
+button.twisty::before {
+	content: "";
+	flex: none;
+	width: 0.4375rem;
+	height: 0.4375rem;
+	border-right: 0.125rem solid var(--muted);
+	border-bottom: 0.125rem solid var(--muted);
+	transform: rotate(-45deg);
+	transition: transform 0.12s;
+}
+.group-toggle[aria-expanded="true"]::before,
+button.twisty[aria-expanded="true"]::before { transform: rotate(45deg); }
+/* Something changed inside a folded branch: the same dot as on a changed page. */
+.group[data-has-changes] > .group-head .group-toggle[aria-expanded="false"] h2::after,
+li[data-has-changes] > .entry-row .twisty[aria-expanded="false"]::after {
+	content: "";
+	display: inline-block;
+	width: 0.5rem;
+	height: 0.5rem;
+	margin-left: 0.5rem;
+	border-radius: 50%;
+	background: var(--warn);
+}
+li[data-has-changes] > .entry-row .twisty[aria-expanded="false"]::after {
+	position: absolute;
+	top: 0.125rem;
+	right: 0.125rem;
+	margin: 0;
+}
 .subpages {
 	display: grid;
 	gap: 0.125rem;

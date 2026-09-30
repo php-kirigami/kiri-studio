@@ -10,6 +10,7 @@ import { h } from './dom.js';
 import { ask, imageCode, pickImage, showMedia } from './media-view.js';
 import { createPreviewPane } from './preview-pane.js';
 import { createPublisher } from './publish.js';
+import { createCollapseStore } from './collapse.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -220,15 +221,52 @@ async function openSite(user, site, sites) {
 			for (const button of sidebar.querySelectorAll('[data-path]')) {
 				button.toggleAttribute('data-changed', this.changes.has(button.dataset.path));
 			}
+			// A folded branch still shows that something inside it changed.
+			for (const el of sidebar.querySelectorAll('[data-has-changes]')) el.removeAttribute('data-has-changes');
+			for (const button of sidebar.querySelectorAll('.entry[data-changed]')) {
+				for (let el = button.parentElement; el && el !== sidebar; el = el.parentElement) {
+					if (el.matches('li, section.group')) el.setAttribute('data-has-changes', '');
+				}
+			}
 			changesLabel.textContent = this.changes.size ? changeCount(this.changes.size) : '';
 			this.onChanges?.();
 		},
+	};
+
+	// Folding: a section head, or a tree page that has sub-pages, shows or hides its list. The client's
+	// choice is remembered per site; without one, sections start open and pages with sub-pages start
+	// closed (a course can have hundreds of pages).
+	const folded = createCollapseStore(site.fullName);
+	const fold = (toggle, box, open) => {
+		box.hidden = !open;
+		toggle.setAttribute('aria-expanded', String(open));
+	};
+	const foldable = (id, toggle, box, fallback) => {
+		box.foldToggle = toggle;
+		fold(toggle, box, folded.isOpen(id, fallback));
+		toggle.addEventListener('click', () => {
+			const open = box.hidden;
+			fold(toggle, box, open);
+			folded.set(id, open);
+		});
+	};
+	// Opens every fold above an entry so the selected page is always visible (not remembered).
+	const reveal = (button) => {
+		for (let box = button.closest('ul[hidden]'); box; box = box.parentElement?.closest('ul[hidden]')) {
+			fold(box.foldToggle, box, true);
+		}
+	};
+	const sectionHead = (id, label, list, add = null) => {
+		const toggle = h('button.group-toggle', { type: 'button', 'aria-label': `${t('sidebar.toggle')} (${label})` }, h('h2', label));
+		foldable(id, toggle, list, true);
+		return h('div.group-head', toggle, add);
 	};
 
 	const select = async (button, render) => {
 		await ws.close();
 		sidebar.querySelectorAll('[aria-current]').forEach((el) => el.removeAttribute('aria-current'));
 		button.setAttribute('aria-current', 'true');
+		reveal(button);
 		return render();
 	};
 
@@ -261,7 +299,13 @@ async function openSite(user, site, sites) {
 				onclick: () => create(entry.path),
 			});
 			const kids = children(entry.path);
-			return h('li', h('div.entry-row', entryButton(entry), addChild), kids.length > 0 && h('ul.subpages', kids));
+			const sub = kids.length > 0 && h('ul.subpages', kids);
+			let twisty = h('span.twisty'); // keeps the rows of pages without sub-pages aligned
+			if (sub) {
+				twisty = h('button.twisty', { type: 'button', 'aria-label': `${t('sidebar.toggle')} (${entry.label})` });
+				foldable(`${collection.pattern}:${entry.path}`, twisty, sub, false);
+			}
+			return h('li', h('div.entry-row', twisty, entryButton(entry), addChild), sub);
 		};
 		const render = async (open) => {
 			const files = await studio.collections.files(collection.pattern);
@@ -283,7 +327,7 @@ async function openSite(user, site, sites) {
 		state.render = render;
 		ws.collections.set(collection.pattern, state);
 		loading.push(render());
-		return h('section.group', h('div.group-head', h('h2', collection.label), add), list);
+		return h('section.group', sectionHead(collection.pattern, collection.label, list, add), list);
 	};
 
 	// One entry per media folder; subfolders are browsed in the main area.
@@ -314,14 +358,22 @@ async function openSite(user, site, sites) {
 		}
 
 		sidebar.replaceChildren(...[
-			[...groups].map(([name, entries]) => h('section.group',
-				h('h2', name),
-				h('ul', entries.map((entry) => h('li', entryButton(entry)))))),
+			[...groups].map(([name, entries]) => {
+				const list = h('ul', entries.map((entry) => h('li', entryButton(entry))));
+				return h('section.group', sectionHead(`content:${name}`, name, list), list);
+			}),
 			scope.collections.map((collection) => collectionSection(collection)),
-			mediaGroup.length && h('section.group', h('h2', t('ws.media')), h('ul', mediaGroup)),
+			mediaGroup.length && (() => {
+				const list = h('ul', mediaGroup);
+				return h('section.group', sectionHead('media', t('ws.media'), list), list);
+			})(),
 		].flat().filter(Boolean));
 		await Promise.all(loading);
-		if (key) sidebar.querySelector(key)?.setAttribute('aria-current', 'true');
+		const current = key && sidebar.querySelector(key);
+		if (current) {
+			current.setAttribute('aria-current', 'true');
+			reveal(current);
+		}
 		ws.setChanges([...ws.changes]);
 	}
 
