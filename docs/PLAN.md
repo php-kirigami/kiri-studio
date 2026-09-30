@@ -57,8 +57,10 @@ sub-pages. Labels come from `@title`. The editor shows the header as a form abov
 select with "Default" = no own `@type`); technical tags (`type`, `content`, `_` names, `@@`) stay
 hidden. Tests: `md-header`, `scope`, `collections`; smoke `page-header` (checks the saved draft
 keeps the header byte for byte) and `page-tree` (fixture: `src/news/*/_index.md`,
-`src/guide/**/_index.md`, two `prepros.types`). Not tried on a real site yet (template-blog is the
-candidate once core is released).
+`src/guide/**/_index.md`, two `prepros.types`). Tried 2026-09-30 on a local copy of template-blog (published core 3.2.1, `KIRI_STUDIO_LOCAL_SITE`, no GitHub):
+scope, the "Posts" collection (`studio:` block of the template), creating a post, the header form and the live
+preview all work; the preview now navigates to the open `_index.md` page (`page` on collection entries,
+`pagePath` knows `.md`). Still not tried with a real GitHub account and the App.
 
 **Audio and video in the documents manager** (2026-09-30, unreleased). A file of a
 playable type (mp3, m4a, aac, wav, flac, ogg/oga/opus; mp4, m4v, webm, ogv, mov) shows

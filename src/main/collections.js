@@ -95,6 +95,8 @@ export function createCollections({ treeDir, drafts, scope, isExcluded }) {
 			path: rel,
 			label: labelOf(rel, drafts.read(rel)?.toString('utf8')),
 			group: null,
+			// An `_index.md` is a page itself: the preview shows it.
+			page: /(^|\/)_index\.md$/i.test(rel) ? rel : null,
 			kind: rel.endsWith('.md') ? 'markdown' : 'data',
 			schema: collection.files.find((f) => f.path === rel)?.schema ?? null,
 			...(tree && { parent: parentOf(rel) }),

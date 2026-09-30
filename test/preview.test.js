@@ -10,3 +10,8 @@ test('pagePath maps a page file to its URL path, like Kirigami names outputs', (
 	assert.equal(pagePath('.', 'blog/_index.php'), 'blog/');
 	assert.equal(pagePath('src', null), null);
 });
+
+test('pagePath maps a Markdown page (_index.md) like a PHP one', () => {
+	assert.equal(pagePath('src', 'src/_index.md'), '');
+	assert.equal(pagePath('src', 'src/posts/hello-world/_index.md'), 'posts/hello-world/');
+});

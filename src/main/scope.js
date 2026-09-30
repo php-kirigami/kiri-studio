@@ -133,7 +133,8 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 			.map(toPosix)
 			.filter((rel) => DATA_EXTS.has(path.posix.extname(rel).toLowerCase()) && !excluded(rel) && isFile(rel))
 			.sort()
-			.map((rel) => entry(rel, (/\.md$/i.test(rel) && headerInfo(readOptional(path.join(treeDir, rel))).title) || humanize(fileStem(rel))));
+			// An `_index.md` is a page itself: the preview shows it.
+			.map((rel) => entry(rel, (/\.md$/i.test(rel) && headerInfo(readOptional(path.join(treeDir, rel))).title) || humanize(fileStem(rel)), null, /(^|\/)_index\.md$/i.test(rel) ? rel : null));
 		// A folder collection ("src/posts/*/_index.md", "src/docs/**/_index.md")
 		// is named after the folder above the "*".
 		const folder = path.posix.dirname(pattern.replace(/\/\*\*?\/_index\.md$/i, '/_index.md'));

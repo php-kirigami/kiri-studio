@@ -7,7 +7,7 @@ import { t } from './i18n.js';
 const STORAGE_KEY = 'kiri-studio.preview';
 const COLLAPSED_KEY = 'kiri-studio.preview-collapsed';
 
-// URL path of a page: "src/about/_index.php" (root "src") → "about/",
+// URL path of a page: "src/about/_index.php" or "_index.md" (root "src") → "about/",
 // "src/_contact.php" → "contact.html", the home page → "".
 export function pagePath(root, page) {
 	if (!page) return null;
@@ -15,7 +15,7 @@ export function pagePath(root, page) {
 	const slash = rel.lastIndexOf('/');
 	const dir = slash === -1 ? '' : `${rel.slice(0, slash)}/`;
 	const name = rel.slice(slash + 1);
-	return dir + (/^_+index\.php$/i.test(name) ? '' : name.replace(/^_+/, '').replace(/\.php$/i, '.html'));
+	return dir + (/^_+index\.(php|md)$/i.test(name) ? '' : name.replace(/^_+/, '').replace(/\.(php|md)$/i, '.html'));
 }
 
 function remembered() {
