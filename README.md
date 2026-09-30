@@ -36,8 +36,8 @@ Part of the **Kirigami** ecosystem. Windows, macOS, and Linux.
 
 **Early development.** Signing in, finding your sites, keeping them in sync,
 and editing text and data files (checked against their JSON Schema, with
-changes saved automatically as drafts), managing images and documents, the
-live preview, and staying in sync while others edit the same site work;
+changes saved automatically as drafts), managing images and documents
+(audio and video files play in the app), the live preview, and staying in sync while others edit the same site work;
 publishing comes next. Installers are built but not signed yet (Windows warns
 on first install; macOS needs right-click → Open). The plan, the design choices, and the
 feasibility checks already done (Kirigami running inside Electron, publishing

@@ -6,6 +6,9 @@ import { t } from './i18n.js';
 import { maxFileSize } from '../shared/lfs.js';
 
 const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
+const AUDIO = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i;
+const VIDEO = /\.(mp4|m4v|webm|ogv|mov)$/i;
+const isPlayable = (name) => AUDIO.test(name) || VIDEO.test(name);
 const RESIZABLE = /^image\/(jpeg|png|webp)$/;
 const MAX_SIDE = 2560; // px: plenty for any web layout; Kirigami makes the smaller sizes
 
@@ -96,6 +99,34 @@ export function viewImage(ws, images, index) {
 	dialog.showModal();
 	close.focus();
 	return dialog;
+}
+
+// Player for an audio or video file the client added, in the same frame as the
+// image viewer. The bytes come from studio-media:, which answers Range requests,
+// so the timeline can be dragged. Returns the dialog and its media element.
+export function playMedia(ws, file) {
+	const media = h(VIDEO.test(file.name) ? 'video.lightbox-media' : 'audio.lightbox-media',
+		{ controls: true, preload: 'metadata', playsinline: true, src: mediaUrl(file) });
+	const note = h('p.lightbox-note', { role: 'alert', hidden: true }, t('media.playError'));
+	// A codec this app can't play: say so, instead of a dead control bar.
+	media.addEventListener('error', () => { note.hidden = false; });
+	const close = h('button.secondary', t('media.close'));
+	const dialog = h('dialog.lightbox.lightbox-play',
+		h('div.lightbox-bar', h('div', h('strong.lightbox-name', file.name), h('span.lightbox-meta', formatSize(file.size))), h('div.spacer'), close),
+		h('div.lightbox-stage', media, note));
+	close.addEventListener('click', () => dialog.close());
+	dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+	dialog.addEventListener('close', () => {
+		// Stop the sound and free the file before the dialog goes away.
+		media.pause();
+		media.removeAttribute('src');
+		media.load();
+		dialog.remove();
+	});
+	document.body.append(dialog);
+	dialog.showModal();
+	close.focus();
+	return { dialog, media, note };
 }
 
 // Lets the client pick an image from the images folder (all subfolders).
@@ -246,7 +277,13 @@ export async function showMedia(ws, media, folderPath = media.root) {
 				'aria-label': `${t('media.view')}: ${file.name}`,
 				onclick: () => viewImage(ws, images, images.indexOf(file)),
 			}, h('img.thumb', { src: mediaUrl(file), alt: '', loading: 'lazy', draggable: 'false' }))
-			: h('span.doc', { dataset: { ext: file.name.split('.').pop().toUpperCase() } }),
+			: isPlayable(file.name)
+				? h('button.thumb-open.play', {
+					title: t('media.play'),
+					'aria-label': `${t('media.play')}: ${file.name}`,
+					onclick: () => playMedia(ws, file),
+				}, h('span.doc.playable', { dataset: { ext: file.name.split('.').pop().toUpperCase() } }))
+				: h('span.doc', { dataset: { ext: file.name.split('.').pop().toUpperCase() } }),
 		h('span.tile-name', { title: file.name }, file.name),
 		file.status && h('span.badge', t(`media.status.${file.status}`)),
 		menu(file, false));
@@ -298,4 +335,34 @@ export async function showMedia(ws, media, folderPath = media.root) {
 	ws.view = view;
 	ws.smokeAdd = addFiles;
 	ws.smokeView = () => images.length && viewImage(ws, images, 0);
+	// Smoke tests: open each audio/video file, check it loads, that a jump in the
+	// timeline lands where asked (that is what needs Range requests), and that it
+	// plays. Throws on the first problem. The last player stays open for the screenshot.
+	const playable = folder.files.filter((file) => isPlayable(file.name));
+	ws.smokePlay = async () => {
+		if (!playable.length) throw new Error('no audio or video file in this folder');
+		const once = (target, event) => new Promise((resolve, reject) => {
+			const timer = setTimeout(() => reject(new Error(`no "${event}" event`)), 15000);
+			target.addEventListener(event, () => { clearTimeout(timer); resolve(); }, { once: true });
+		});
+		for (const file of playable) {
+			const { dialog, media, note } = playMedia(ws, file);
+			try {
+				await once(media, 'loadedmetadata');
+				if (!(media.duration > 1)) throw new Error(`duration is ${media.duration}`);
+				const target = media.duration / 2;
+				media.currentTime = target;
+				await once(media, 'seeked');
+				if (Math.abs(media.currentTime - target) > 0.5) throw new Error(`asked for ${target.toFixed(1)}s, landed on ${media.currentTime.toFixed(1)}s`);
+				media.muted = true;
+				await media.play();
+				await new Promise((resolve) => setTimeout(resolve, 700));
+				if (!(media.currentTime > target)) throw new Error('does not play');
+				if (!note.hidden) throw new Error('the player reports an error');
+			} catch (error) {
+				throw new Error(`${file.name}: ${error.message}`);
+			}
+			if (file !== playable.at(-1)) dialog.close();
+		}
+	};
 }

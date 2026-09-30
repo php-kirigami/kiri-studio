@@ -357,6 +357,14 @@ async function openSite(user, site, sites) {
 				ws.smokeView();
 				await new Promise((resolve) => setTimeout(resolve, 600));
 			}
+			if (info.smokePlay) {
+				// A failure is reported as a renderer error, which fails the smoke run.
+				try {
+					await ws.smokePlay();
+				} catch (error) {
+					console.error(`smoke play: ${error.message}`);
+				}
+			}
 			studio.ui.settled('entry');
 		}
 	} else if (info.smokeOpen) {

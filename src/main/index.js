@@ -19,6 +19,7 @@ import { publishSite, describeChanges } from './publish.js';
 import { watchDeploy } from './deploy.js';
 import { createLfs, createLfsStore, parsePointer } from './lfs.js';
 import { maxFileSize } from '../shared/lfs.js';
+import { bytesResponse } from './lib/range.js';
 
 app.setName('Kiri Studio');
 if (process.env.KIRI_STUDIO_USER_DATA) app.setPath('userData', path.resolve(process.env.KIRI_STUDIO_USER_DATA));
@@ -64,6 +65,7 @@ ipcMain.handle('app:info', () => ({
 	smokeOpen: process.env.KIRI_STUDIO_SMOKE_OPEN || null,
 	smokeType: process.env.KIRI_STUDIO_SMOKE_TYPE || null,
 	smokeView: !!process.env.KIRI_STUDIO_SMOKE_VIEW,
+	smokePlay: !!process.env.KIRI_STUDIO_SMOKE_PLAY,
 	smokePreview: !!process.env.KIRI_STUDIO_SMOKE_PREVIEW,
 	smokeCollapse: !!process.env.KIRI_STUDIO_SMOKE_COLLAPSE,
 	smokePublish: !!process.env.KIRI_STUDIO_SMOKE_PUBLISH,
@@ -471,8 +473,13 @@ ipcMain.handle('media:usage', (_event, rel) => {
 const MIME = {
 	'.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp',
 	'.gif': 'image/gif', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.pdf': 'application/pdf',
+	'.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav', '.flac': 'audio/flac',
+	'.ogg': 'audio/ogg', '.oga': 'audio/ogg', '.opus': 'audio/ogg',
+	'.mp4': 'video/mp4', '.m4v': 'video/mp4', '.webm': 'video/webm', '.ogv': 'video/ogg', '.mov': 'video/quicktime',
 };
-protocol.registerSchemesAsPrivileged([{ scheme: 'studio-media', privileges: { standard: true, secure: true } }]);
+// `stream`: Electron's privilege for a scheme that serves audio and video. Playback
+// also worked without it on the small smoke files; it is kept as documented.
+protocol.registerSchemesAsPrivileged([{ scheme: 'studio-media', privileges: { standard: true, secure: true, stream: true } }]);
 async function serveMedia(request) {
 	const rel = decodeURIComponent(new URL(request.url).pathname.slice(1));
 	if (!current || !mediaRootOf(current.scope, rel)) return new Response(null, { status: 404 });
@@ -488,13 +495,16 @@ async function serveMedia(request) {
 			return new Response(null, { status: 502 });
 		}
 	}
-	return new Response(data, {
-		headers: {
-			'Content-Type': MIME[path.posix.extname(rel).toLowerCase()] ?? 'application/octet-stream',
-			// An SVG must not run scripts inside the app.
-			'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
-		},
-	});
+	// Range requests are what lets the viewer jump around in an audio or video file.
+	const response = bytesResponse(Buffer.from(data), {
+		'Content-Type': MIME[path.posix.extname(rel).toLowerCase()] ?? 'application/octet-stream',
+		// An SVG must not run scripts inside the app.
+		'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
+	}, request.headers.get('range'));
+	// Smoke tests read this: a small file plays and seeks even without Range, so
+	// only the answers themselves prove the protocol negotiates it.
+	if (process.env.KIRI_STUDIO_SCREENSHOT) console.log(`[studio-media] ${response.status} ${rel} ${request.headers.get('range') ?? ''}`);
+	return response;
 }
 
 ipcMain.handle('site:openLive', () => {

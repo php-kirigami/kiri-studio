@@ -532,6 +532,16 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 .thumb-open { padding: 0; border-radius: 0.25rem; cursor: zoom-in; }
 .thumb-open:hover .thumb { filter: brightness(1.08); }
 .tool[data-action="image"]::before { content: "▣"; font-size: 1.05rem; }
+/* Audio and video tiles open a player. */
+.thumb-open.play { cursor: pointer; }
+.thumb-open.play:hover .doc { filter: brightness(1.08); }
+.doc.playable::before { content: "▶  " attr(data-ext); }
+.lightbox.lightbox-play { height: auto; max-height: 90vh; }
+.lightbox-play .lightbox-stage { display: grid; gap: 0.75rem; place-items: center; padding: 1rem; }
+.lightbox-media { width: 100%; max-height: 70vh; border-radius: 0.25rem; }
+video.lightbox-media { background: #000; }
+.lightbox-note { margin: 0; color: var(--warn); }
+
 
 .lightbox {
 	width: min(90vw, 80rem);

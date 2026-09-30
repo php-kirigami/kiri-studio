@@ -24,6 +24,15 @@ const scenarios = [
 	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
+	// The documents folder lists audio and video next to a PDF: the first two get a play mark.
+	{ name: 'documents', screen: 'entry', open: 'media:files',
+		add: ['tone.mp3', 'clip.mp4'].map((name) => path.join(root, 'test', 'fixtures', 'media', name)) },
+	// Audio and video files added to the documents folder open in a player that
+	// loads them through studio-media:, jumps in the timeline (Range requests) and plays.
+	{ name: 'play', screen: 'entry', open: 'media:files', play: true,
+		// The player asks with a Range header and must be answered with 206.
+		expectOutput: ['[studio-media] 206 ', 'tone.mp3'],
+		add: ['tone.mp3', 'tone.ogg', 'clip.mp4', 'clip.webm'].map((name) => path.join(root, 'test', 'fixtures', 'media', name)) },
 	{ name: 'sites', screen: 'sites', locale: 'fr', pick: true, update: 'ready' },
 	// Last run was an older version: the status bar says the app updated, and
 	// that the next one is downloading.
@@ -86,6 +95,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.type && { KIRI_STUDIO_SMOKE_TYPE: scenario.type }),
 		...(scenario.add && { KIRI_STUDIO_SMOKE_ADD: scenario.add.join(path.delimiter) }),
 		...(scenario.view && { KIRI_STUDIO_SMOKE_VIEW: '1' }),
+		...(scenario.play && { KIRI_STUDIO_SMOKE_PLAY: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
 		...(scenario.collapse && { KIRI_STUDIO_SMOKE_COLLAPSE: '1' }),
 		...(scenario.publish && { KIRI_STUDIO_SMOKE_PUBLISH: '1', KIRI_STUDIO_FAKE_PUBLISH: '60' }),
@@ -121,6 +131,10 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 	if (!fs.existsSync(screenshot)) problems.push('no screenshot');
 	if (errors.length) problems.push(...errors);
 	if (scenario.expect && !produced.includes(scenario.expect.contains)) problems.push(`${scenario.expect.file} lacks "${scenario.expect.contains}"`);
+	// Some line of the program's output must contain all the given parts.
+	if (scenario.expectOutput && !output.split('\n').some((line) => scenario.expectOutput.every((part) => line.includes(part)))) {
+		problems.push(`no output line with ${scenario.expectOutput.map((part) => `"${part}"`).join(' and ')}`);
+	}
 
 	if (problems.length) {
 		failed++;

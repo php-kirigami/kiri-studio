@@ -34,10 +34,26 @@ editor with JSON Schema help and smart indentation, autosaved drafts (text,
 binary, deletions), image/document managers (subfolders, downscale, viewer,
 `{% img-asset %}` copy/insert), collections, live preview, multi-editor
 awareness, unsigned installers + self-updates, CI on 3 OSes (unit + `npm
-run smoke`, 10 scenarios on `test/fixtures/site`). The preview folds to a thin
+run smoke`, 13 scenarios on `test/fixtures/site`). The preview folds to a thin
 rail on the right (» in its header, « on the rail; remembered), leaving the
 width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
 not rebuild the renderer: run `npm run build` first or it tests the old bundle.
+
+**Audio and video in the documents manager** (2026-09-30, unreleased). A file of a
+playable type (mp3, m4a, aac, wav, flac, ogg/oga/opus; mp4, m4v, webm, ogv, mov) shows
+a "▶ MP3" tile and opens in a player dialog (`playMedia()` in `media-view.js`, a
+`<audio>`/`<video>` with controls; a codec the app can't play shows a note instead of a
+dead bar). The bytes come from `studio-media:`, which now answers HTTP Range requests
+(`src/main/lib/range.js`: 206 + Content-Range, 416, whole file for anything else) and knows
+the audio/video MIME types; without Range a browser can't jump past what it has buffered.
+The CSP has `media-src studio-media:`. Tests: `test/range.test.js`; smoke `documents`
+(the tiles) and `play` (adds an mp3, ogg, H.264/AAC mp4 and VP9/Opus webm, opens each, jumps
+to the middle of the timeline, checks it lands there and plays; it also requires an
+output line `[studio-media] 206 … tone.mp3`, because on files this small Chromium seeks
+even without Range, so the answers themselves are the proof; checked by turning Range off
+in `range.js`: the scenario fails). Same 25 MB cap per file, 100 MB for paths routed to
+Git LFS: a site that wants videos should add `*.mp4 filter=lfs diff=lfs merge=lfs -text`
+(and its friends) to its `.gitattributes`. Not tried with a real GitHub site yet.
 
 **Multi-editor awareness** (last session): the renderer calls `site:sync`
 every 3 minutes and on window focus (if the last check is older than 30 s).
