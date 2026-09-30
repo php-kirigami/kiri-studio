@@ -165,7 +165,8 @@ const strings = {
 		'app.whatsNew': 'What’s new',
 		'app.dismiss': 'Close',
 		'update.downloading': 'Downloading update {version}… {percent}%',
-		'update.ready': 'Update {version} ready: it installs when you close Kiri Studio.',
+		'update.ready': 'Update {version} ready.',
+		'update.restart': 'Restart now',
 	},
 	fr: {
 		loading: 'Chargement…',
@@ -330,7 +331,8 @@ const strings = {
 		'app.whatsNew': 'Nouveautés',
 		'app.dismiss': 'Fermer',
 		'update.downloading': 'Téléchargement de la mise à jour {version}… {percent} %',
-		'update.ready': 'Mise à jour {version} prête : elle s’installera à la fermeture de Kiri Studio.',
+		'update.ready': 'Mise à jour {version} prête.',
+		'update.restart': 'Redémarrer maintenant',
 	},
 };
 

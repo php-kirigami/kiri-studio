@@ -14,7 +14,7 @@ import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
 import { createPreview } from './preview.js';
-import { startUpdates } from './updates.js';
+import { installUpdate, startUpdates } from './updates.js';
 import { publishSite, describeChanges } from './publish.js';
 import { watchDeploy } from './deploy.js';
 import { createLfs, createLfsStore, parsePointer } from './lfs.js';
@@ -585,6 +585,7 @@ let updateStatus = !fakeUpdate ? null
 	: fakeUpdate === 'ready' ? { state: 'ready', version: '9.9.9' }
 		: { state: 'downloading', version: '9.9.9', percent: Number(fakeUpdate) };
 ipcMain.handle('update:status', () => updateStatus);
+ipcMain.handle('update:install', () => { if (updateStatus?.state === 'ready') installUpdate(); });
 
 app.whenReady().then(() => {
 	const { lastVersion } = readPrefs();

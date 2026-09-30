@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('studio', {
 	openPreview: (url) => ipcRenderer.invoke('app:openPreview', url),
 	updates: {
 		status: () => ipcRenderer.invoke('update:status'),
+		install: () => ipcRenderer.invoke('update:install'),
 		onStatus: listen('update:status'),
 	},
 	auth: {

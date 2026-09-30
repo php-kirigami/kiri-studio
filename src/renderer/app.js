@@ -137,20 +137,27 @@ const version = () => h('p.version', `Kiri Studio ${info.version}`, updateLine()
 // updateLine() sits (status bar, next to the version), kept current.
 let update = null;
 const updateLines = new Set();
-const updateText = () => {
-	if (update?.state === 'ready') return t('update.ready', { version: update.version });
-	if (update?.state === 'downloading') return t('update.downloading', { version: update.version, percent: update.percent });
-	return '';
+const updateContent = () => {
+	if (update?.state === 'ready') {
+		return [t('update.ready', { version: update.version }), ' ', h('button.link', { onclick: restartToUpdate }, t('update.restart'))];
+	}
+	if (update?.state === 'downloading') return [t('update.downloading', { version: update.version, percent: update.percent })];
+	return [];
 };
+// Drafts are saved as they are typed; leaving the workspace flushes the open editor first.
+async function restartToUpdate() {
+	await leaveWorkspace();
+	await studio.updates.install();
+}
 function updateLine() {
-	const line = h('span.update', updateText());
+	const line = h('span.update', ...updateContent());
 	updateLines.add(line);
 	return line;
 }
 studio.updates.onStatus((status) => {
 	update = status;
 	for (const line of updateLines) {
-		if (line.isConnected) line.textContent = updateText();
+		if (line.isConnected) line.replaceChildren(...updateContent());
 		else updateLines.delete(line);
 	}
 });

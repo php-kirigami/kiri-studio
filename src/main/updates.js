@@ -1,6 +1,6 @@
 // App updates, silent: check at startup and every few hours, download in the
 // background, install when the app quits. The next launch is the new version;
-// the client is never asked anything. Feeds from GitHub Releases on
+// the client can also restart right away from the status line. Feeds from GitHub Releases on
 // php-kirigami/kiri-studio (see "publish" in electron-builder.yml).
 //
 // Only where an update can install itself without help:
@@ -23,6 +23,11 @@ export function canSelfUpdate() {
 // onStatus gets { state: 'downloading', version, percent }, then
 // { state: 'ready', version }, or null when a download failed (it is tried
 // again at the next check). The client sees it as one line, never a question.
+// Closes the app and starts the downloaded version (only once it is ready).
+export function installUpdate() {
+	if (canSelfUpdate()) updater.autoUpdater.quitAndInstall(false, true);
+}
+
 export function startUpdates(onStatus = () => {}) {
 	if (!canSelfUpdate()) return;
 	const { autoUpdater } = updater;
