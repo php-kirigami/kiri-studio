@@ -39,8 +39,8 @@ rail on the right (» in its header, « on the rail; remembered), leaving the
 width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
 not rebuild the renderer: run `npm run build` first or it tests the old bundle.
 
-**Markdown pages, folder and tree collections, page header form** (2026-09-30, unreleased;
-needs core with Markdown pages, committed in the monorepo, not released yet). Follows core's new
+**Markdown pages, folder and tree collections, page header form** (2026-09-30, **released as 0.4.0**; needs
+core 3.2.x, which has Markdown pages). Follows core's new
 rules: an `_index.md` starting with `@tag` lines (no `_index.php` next to it) is a page, `@@tag`
 passes a value down. `src/shared/md-header.js` reads/rewrites that header exactly like
 php-prepros's `FS::splitHeader()` (untouched header = identical bytes; editing a field rewrites
@@ -60,7 +60,7 @@ keeps the header byte for byte) and `page-tree` (fixture: `src/news/*/_index.md`
 `src/guide/**/_index.md`, two `prepros.types`). Tried 2026-09-30 on a local copy of template-blog (published core 3.2.1, `KIRI_STUDIO_LOCAL_SITE`, no GitHub):
 scope, the "Posts" collection (`studio:` block of the template), creating a post, the header form and the live
 preview all work; the preview now navigates to the open `_index.md` page (`page` on collection entries,
-`pagePath` knows `.md`). Still not tried with a real GitHub account and the App.
+`pagePath` knows `.md`). Then checked by the maintainer with a real GitHub account and the App (2026-09-30): OK.
 
 **Audio and video in the documents manager** (2026-09-30, unreleased). A file of a
 playable type (mp3, m4a, aac, wav, flac, ogg/oga/opus; mp4, m4v, webm, ogv, mov) shows
