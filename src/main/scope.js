@@ -148,8 +148,14 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	const pageTypes = studio.types === false ? []
 		: Array.isArray(studio.types) ? defined.filter((name) => studio.types.includes(name))
 		: defined;
+	// Media kept next to a Markdown page, in its own folders. Off unless the site asks:
+	// `studio.pageMedia: true` means `images/` and `videos/`; a list names other folders.
+	const pageMedia = studio.pageMedia === true ? ['images', 'videos']
+		: Array.isArray(studio.pageMedia) ? studio.pageMedia.filter((name) => typeof name === 'string' && /^[a-z0-9][a-z0-9_-]*$/i.test(name))
+		: [];
 	return {
 		pageTypes,
+		pageMedia,
 		content: [...content.values()],
 		collections,
 		images: imagesDir && folderTree(treeDir, imagesDir, excluded),
@@ -179,7 +185,23 @@ export function isExcluded(patterns, rel) {
 export function mediaRootOf(scope, rel) {
 	if (typeof rel !== 'string' || rel.split('/').some((part) => part === '..' || part === '')) return null;
 	if (isExcluded(scope.exclude, rel)) return null;
-	return [scope.images, scope.files].find((media) => media && (rel === media.path || rel.startsWith(`${media.path}/`)))?.path ?? null;
+	const shared = [scope.images, scope.files].find((media) => media && (rel === media.path || rel.startsWith(`${media.path}/`)))?.path;
+	return shared ?? pageMediaRoot(scope, rel);
+}
+
+// `<page folder>/images`, `<page folder>/videos`: the media of one page, kept next to its `_index.md`.
+// The page is one a collection lists (even one created since the sync) or content of its own.
+// Returns that media folder, or null.
+export function pageMediaRoot(scope, rel) {
+	const parts = rel.split('/');
+	for (let i = parts.length - 1; i >= 1; i--) {
+		if (!scope.pageMedia?.includes(parts[i])) continue;
+		const page = `${parts.slice(0, i).join('/')}/_index.md`;
+		const isPage = scope.content.some((entry) => entry.path === page)
+			|| scope.collections.some((collection) => path.posix.matchesGlob(page, collection.pattern));
+		if (isPage) return parts.slice(0, i + 1).join('/');
+	}
+	return null;
 }
 
 // Whether `rel` is something the client may open: guards every file read the

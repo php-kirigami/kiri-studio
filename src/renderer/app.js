@@ -11,6 +11,7 @@ import { ask, imageCode, pickImage, showMedia } from './media-view.js';
 import { createPreviewPane } from './preview-pane.js';
 import { createPublisher } from './publish.js';
 import { createCollapseStore } from './collapse.js';
+import { createPageMedia } from './page-media.js';
 
 const { studio } = window;
 const app = document.getElementById('app');
@@ -448,6 +449,11 @@ async function openSite(user, site, sites) {
 		const button = sidebar.querySelector(`[data-path="${CSS.escape(info.smokeOpen)}"]`);
 		if (entry && button) {
 			await select(button, () => showEntry(entry));
+			// Smoke tests: add files to the page's own media folders.
+			if (info.smokeFiles?.length && ws.smokePageMedia) {
+				await ws.smokePageMedia(info.smokeFiles.map((f) => new File([f.bytes], f.name, { type: f.type })));
+				await new Promise((resolve) => setTimeout(resolve, 800)); // thumbnails
+			}
 			if (info.smokePreview) {
 				await ws.preview.ready();
 				await new Promise((resolve) => setTimeout(resolve, 2000)); // page load
@@ -685,6 +691,7 @@ async function showEntry(entry) {
 		h('div.entry-head', heading, saveState, discard, remove),
 		outdated,
 		fields,
+		isMarkdown && createPageMedia(ws, entry, editor),
 		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),

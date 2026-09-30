@@ -647,6 +647,44 @@ li[data-has-changes] > .entry-row .twisty[aria-expanded="false"]::after {
 video.lightbox-media { background: #000; }
 .lightbox-note { margin: 0; color: var(--warn); }
 
+/* The media of one page: a panel above the editor, one row per file. */
+.page-media {
+	margin-bottom: 1rem;
+	background: var(--panel);
+	border: var(--hair) solid var(--line);
+	border-radius: var(--radius);
+}
+.page-media.dropping { outline: 0.125rem dashed var(--accent); background: var(--accent-soft); }
+.page-media > summary {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	padding: 0.625rem 1rem;
+	font-weight: 600;
+	cursor: pointer;
+}
+.page-media-count:not(:empty) {
+	padding: 0 0.5rem;
+	border-radius: 1rem;
+	background: var(--accent-soft);
+	color: var(--accent);
+	font-size: 0.8125rem;
+}
+.page-media-body { display: grid; gap: 0.625rem; padding: 0 1rem 1rem; }
+.page-media-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.page-media-help { color: var(--muted); font-size: 0.875rem; }
+.page-media-files { display: grid; gap: 0.5rem; margin: 0; padding: 0; list-style: none; }
+.page-media-file { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.page-media-file .thumb-open { flex: none; width: 4.5rem; height: 3.25rem; overflow: hidden; background: var(--paper); }
+.page-media-file .thumb,
+.page-media-file .doc { width: 100%; height: 100%; object-fit: cover; font-size: 0.75rem; }
+.page-media-name { display: grid; flex: 1; min-width: 8rem; }
+.page-media-name strong { overflow-wrap: anywhere; }
+.page-media-name small { color: var(--muted); }
+.page-media-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.page-media-actions .secondary { padding: 0.25rem 0.625rem; font-size: 0.875rem; }
+.page-media-empty { color: var(--muted); }
+
 
 .lightbox {
 	width: min(90vw, 80rem);

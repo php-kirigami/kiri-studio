@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { buildScope, firstDocBlock, humanize, inScope, isPage, parseDocBlock, stripJsonComments } from '../src/main/scope.js';
+import { buildScope, firstDocBlock, humanize, inScope, isPage, mediaRootOf, parseDocBlock, stripJsonComments } from '../src/main/scope.js';
 
 function site(t, files) {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kiri-studio-scope-'));
@@ -214,4 +214,49 @@ test('pageTypes: the prepros.types a client may pick, narrowed or hidden by stud
 	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': `${base}studio:\n  types: [note, missing]\n` })).pageTypes, ['note']);
 	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': `${base}studio:\n  types: false\n` })).pageTypes, []);
 	assert.deepEqual(buildScope(site(t, { 'kirigami.yaml': 'kirigami:\n  root: src\nstudio: {}\n' })).pageTypes, []);
+});
+
+test('page media: images/ and videos/ next to a page are media folders, for its own pages only', (t) => {
+	const files = {
+		'kirigami.yaml': 'kirigami:\n  root: src\nstudio:\n  pageMedia: true\n  include:\n    - path: src/course/**/_index.md\n      create: true\n',
+		'src/course/intro/_index.md': '@title Intro\n\nText\n',
+		'src/course/css/_index.md': '@title CSS\n\nText\n',
+		'src/course/css/sprites/exercices/skate/_index.md': '@title Skate\n\nText\n',
+		'src/_home.md': '@title Home\n\nText\n',
+	};
+	const scope = buildScope(site(t, files));
+	assert.deepEqual(scope.pageMedia, ['images', 'videos']);
+
+	// A page of the collection, at any depth — including one in a folder with no index of its own.
+	assert.equal(mediaRootOf(scope, 'src/course/css/images'), 'src/course/css/images');
+	assert.equal(mediaRootOf(scope, 'src/course/css/videos/loop.mp4'), 'src/course/css/videos');
+	assert.equal(mediaRootOf(scope, 'src/course/css/sprites/exercices/skate/images/a/b.png'), 'src/course/css/sprites/exercices/skate/images');
+	// A page created since the sync is covered by the collection's pattern.
+	assert.equal(mediaRootOf(scope, 'src/course/new-page/images/x.png'), 'src/course/new-page/images');
+	assert.equal(inScope(scope, 'src/course/css/images/x.png'), true);
+
+	// Not next to a page, not one of the configured names, or trying to leave.
+	assert.equal(mediaRootOf(scope, 'src/other/images/x.png'), null);
+	assert.equal(mediaRootOf(scope, 'src/course/css/fonts/x.woff'), null);
+	assert.equal(mediaRootOf(scope, 'src/course/css/images/../../secret.png'), null);
+	// `**` also matches zero folders: the course's own home page has a media folder too.
+	assert.equal(mediaRootOf(scope, 'src/course/images/x.png'), 'src/course/images');
+});
+
+test('page media: off unless studio.pageMedia asks; a list names other folders', (t) => {
+	const base = 'kirigami:\n  root: src\nstudio:\n  include:\n    - path: src/docs/**/_index.md\n';
+	const page = { 'src/docs/a/_index.md': '@title A\n\nText\n' };
+	const scopeOf = (extra) => buildScope(site(t, { 'kirigami.yaml': base + extra, ...page }));
+
+	for (const extra of ['', '  pageMedia: false\n', '  pageMedia: 1\n']) {
+		const off = scopeOf(extra);
+		assert.deepEqual(off.pageMedia, [], `off for ${JSON.stringify(extra)}`);
+		assert.equal(mediaRootOf(off, 'src/docs/a/images/x.png'), null);
+	}
+	assert.deepEqual(scopeOf('  pageMedia: true\n').pageMedia, ['images', 'videos']);
+
+	const named = scopeOf('  pageMedia: [media, "bad name", 4]\n');
+	assert.deepEqual(named.pageMedia, ['media']);
+	assert.equal(mediaRootOf(named, 'src/docs/a/media/x.png'), 'src/docs/a/media');
+	assert.equal(mediaRootOf(named, 'src/docs/a/images/x.png'), null);
 });

@@ -15,6 +15,7 @@ prepros:
 
 studio:
   files: src/documents
+  pageMedia: true
   include:
     - path: src/blog/*.md
       label: Blog

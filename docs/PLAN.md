@@ -39,6 +39,19 @@ rail on the right (» in its header, « on the rail; remembered), leaving the
 width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
 not rebuild the renderer: run `npm run build` first or it tests the old bundle.
 
+**Sidebar folding and per-page media** (2026-09-30, after 0.4.0, unreleased). The sidebar folds by section
+(content groups, collections, media) and by tree page that has sub-pages (`collapse.js`: choices remembered per site in
+localStorage, never required; sections start open, pages with sub-pages closed; selecting or creating a page opens the
+folds above it; a folded branch shows the "unpublished changes" dot). `studio.pageMedia` (off by default; `true` =
+`images/` + `videos/`, or a list of folder names) gives each Markdown page its own media folders next to its `_index.md`:
+`scope.js` `pageMediaRoot()` accepts them as media folders for pages a collection glob lists (even ones created since
+the sync) or that are content of their own; `page-media.js` is the "Media of this page" panel above the editor
+(thumbnails, add by drop or pick with the usual resize, size limit from `lfs.js`, insert `![alt](images/x.png)` /
+`{% inline-clip videos/x.mp4 %}` / `{% clip … %}` relative to the page, delete with the usage warning). Same drafts,
+same publish path. Tests: `scope` (page media), `collapse`; smoke `page-media`. The option is in core's schema
+(`packages/kirigami/kirigami.schema.json`), so a site can only set it with a core release that has it (> 3.2.1).
+Left for later: optimizing page images/videos at build time (an `encode` plugin), a "used by" count per file.
+
 **Markdown pages, folder and tree collections, page header form** (2026-09-30, **released as 0.4.0**; needs
 core 3.2.x, which has Markdown pages). Follows core's new
 rules: an `_index.md` starting with `@tag` lines (no `_index.php` next to it) is a page, `@@tag`

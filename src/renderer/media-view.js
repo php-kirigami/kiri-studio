@@ -5,18 +5,18 @@ import { h } from './dom.js';
 import { t } from './i18n.js';
 import { maxFileSize } from '../shared/lfs.js';
 
-const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
+export const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
 const AUDIO = /\.(mp3|m4a|aac|wav|flac|ogg|oga|opus)$/i;
-const VIDEO = /\.(mp4|m4v|webm|ogv|mov)$/i;
+export const VIDEO = /\.(mp4|m4v|webm|ogv|mov)$/i;
 const isPlayable = (name) => AUDIO.test(name) || VIDEO.test(name);
 const RESIZABLE = /^image\/(jpeg|png|webp)$/;
 const MAX_SIDE = 2560; // px: plenty for any web layout; Kirigami makes the smaller sizes
 
-const mediaUrl = (file) => `studio-media://site/${encodeURIComponent(file.path)}?v=${file.size}-${file.status ?? ''}`;
+export const mediaUrl = (file) => `studio-media://site/${encodeURIComponent(file.path)}?v=${file.size}-${file.status ?? ''}`;
 
 // Photos straight from a phone or camera are shrunk before they enter the
 // site; anything already small keeps its original bytes.
-async function prepare(file) {
+export async function prepare(file) {
 	if (RESIZABLE.test(file.type)) {
 		const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
 		const scale = MAX_SIDE / Math.max(bitmap.width, bitmap.height);
@@ -39,7 +39,7 @@ export function imageCode(scope, rel) {
 	return rel.startsWith(prefix) ? `{% img-asset ${rel.slice(prefix.length)} ${scope.imageWidth} %}` : null;
 }
 
-const formatSize = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
+export const formatSize = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);
 
 // Copies an image's Markdown code; the button says so for a moment.
 async function copyCode(button, code) {
