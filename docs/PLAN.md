@@ -5,7 +5,7 @@
 Read this first when resuming. Phases 0–5 are built; phase 6 waits for
 certificates (signing is postponed, maintainer's call 2026-09-29).
 
-**Publish (phase 4, built 2026-09-29, unreleased).** `src/main/publish.js`:
+**Publish (phase 4, built 2026-09-29, first tried by the maintainer on humainhumain 2026-09-29: works).** `src/main/publish.js`:
 sync, one blob per changed file, one tree on the head's tree, one commit,
 `PATCH` the ref with `force: false`; a refused ref ("not a fast forward")
 syncs again and rebuilds on the new head, up to 4 times, client's version
@@ -23,6 +23,10 @@ passed against `php-kirigami/kiri-studio-sandbox`. **Not yet checked with the
 App's own user token** (a `ghu_` token, LFS batch included): try one publish
 from the app on humainhumain (`studio.files` = the PDF reports in LFS,
 `studio.images` = the SVG logos).
+
+**Publish progress** (status bar): `(step/3)` prefix (sending files, saving, rebuilding), a running
+elapsed timer, and for the rebuild "waiting to start" vs "rebuilding: <step name>" from the Actions
+run's jobs (`deploy.js` `currentStep`, best effort) plus a Details link to the run.
 
 **Done** (see the phase sections below for detail): sign-in,
 site list, tarball sync, discovery grouped by page, Markdown editor, YAML/JSON

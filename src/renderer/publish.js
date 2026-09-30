@@ -16,10 +16,33 @@ export function createPublisher({ ws, layout, siteName, apply }) {
 	let busy = false;
 	let clearTimer = null;
 
-	const say = (text, state = '', href = null) => {
+	// While working: "(step/3) what is happening · elapsed time".
+	let startedAt = 0;
+	let ticker = null;
+	let current = null;
+	const elapsed = () => {
+		const seconds = Math.floor((Date.now() - startedAt) / 1000);
+		return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+	};
+	const stopTicker = () => { clearInterval(ticker); ticker = null; };
+
+	const render = () => {
+		const { text, state, href, step } = current;
+		const parts = [step ? `(${step}/3) ${text}` : text];
+		if (state === 'working') parts.push(` · ${elapsed()}`);
+		line.replaceChildren(...parts, ...(href ? [' ', h('a', { href, target: '_blank' }, t('publish.details'))] : []));
+	};
+
+	const say = (text, state = '', href = null, step = 0) => {
 		clearTimeout(clearTimer);
 		line.dataset.state = state;
-		line.replaceChildren(text, ...(href ? [' ', h('a', { href, target: '_blank' }, t('publish.details'))] : []));
+		current = { text, state, href, step };
+		if (state === 'working') {
+			if (!ticker) { startedAt = Date.now(); ticker = setInterval(render, 1000); }
+		} else {
+			stopTicker();
+		}
+		render();
 		if (state === 'done') clearTimer = setTimeout(() => line.replaceChildren(), CLEAR_AFTER);
 	};
 
@@ -34,10 +57,13 @@ export function createPublisher({ ws, layout, siteName, apply }) {
 	const stopListening = studio.publish.onStatus((status) => {
 		if (status.site !== siteName) return;
 		switch (status.state) {
-			case 'checking': return say(t('publish.checking'), 'working');
-			case 'uploading': return say(t('publish.uploading', { done: status.done, total: status.total }), 'working');
-			case 'committing': return say(t('publish.committing'), 'working');
-			case 'deploying': return say(t('publish.deploying'), 'working');
+			case 'checking': return say(t('publish.checking'), 'working', null, 1);
+			case 'uploading': return say(t('publish.uploading', { done: status.done, total: status.total }), 'working', null, 1);
+			case 'committing': return say(t('publish.committing'), 'working', null, 2);
+			case 'deploying': {
+				const what = status.queued ? t('publish.queued') : status.step ? t('publish.building', { step: status.step }) : t('publish.deploying');
+				return say(what, 'working', status.url ?? null, 3);
+			}
 			case 'online': return say(t('publish.online'), 'done');
 			case 'published': return say(t('publish.published'), 'done');
 			case 'deployFailed': return say(t('publish.deployFailed'), 'error', status.url);
@@ -50,7 +76,7 @@ export function createPublisher({ ws, layout, siteName, apply }) {
 		if (!confirm(t('publish.confirm'))) return;
 		busy = true;
 		refresh();
-		say(t('publish.checking'), 'working');
+		say(t('publish.checking'), 'working', null, 1);
 		try {
 			// What is being typed reaches the drafts before they are published.
 			await ws.view?.flush?.();
@@ -69,5 +95,5 @@ export function createPublisher({ ws, layout, siteName, apply }) {
 		}
 	});
 
-	return { close: () => { stopListening(); clearTimeout(clearTimer); } };
+	return { close: () => { stopListening(); stopTicker(); clearTimeout(clearTimer); } };
 }

@@ -7,6 +7,19 @@
 // one, so "online" means a run that includes this publish succeeded.
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// The name of the workflow step running now, if the API says (it is only shown
+// as a detail, so any failure just means no name).
+async function currentStep(gh, site, run) {
+	try {
+		const { jobs = [] } = await gh.json(`/repos/${site.fullName}/actions/runs/${run.id}/jobs`);
+		for (const job of jobs) {
+			const step = job.steps?.find((s) => s.status === 'in_progress');
+			if (step) return step.name;
+		}
+	} catch { /* no detail */ }
+	return null;
+}
+
 export async function watchDeploy({
 	gh, site, sha, onStatus, isCancelled = () => false,
 	interval = 4000, patience = 60_000, limit = 15 * 60_000, pause = sleep,
@@ -36,7 +49,7 @@ export async function watchDeploy({
 			if (Date.now() - started > patience) return onStatus({ state: 'published' });
 		} else {
 			following = run;
-			if (run.status !== 'completed') onStatus({ state: 'deploying', url: run.html_url });
+			if (run.status !== 'completed') onStatus({ state: 'deploying', url: run.html_url, queued: run.status !== 'in_progress', step: await currentStep(gh, site, run) });
 			else if (run.conclusion === 'success') return onStatus({ state: 'online', url: run.html_url });
 			else if (run.conclusion !== 'cancelled') return onStatus({ state: 'deployFailed', url: run.html_url });
 		}
