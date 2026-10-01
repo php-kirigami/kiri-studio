@@ -243,6 +243,13 @@ test('page media: images/ and videos/ next to a page are media folders, for its 
 	assert.equal(mediaRootOf(scope, 'src/course/images/x.png'), 'src/course/images');
 });
 
+test('basePath: the path of baseurl, empty on its own domain', (t) => {
+	const pathOf = (baseurl) => buildScope(site(t, { 'kirigami.yaml': `kirigami:\n  root: src\n${baseurl ? `  baseurl: ${baseurl}\n` : ''}` })).basePath;
+	assert.equal(pathOf('https://humainhumain.com'), '');
+	assert.equal(pathOf('https://user.github.io/repo/'), '/repo');
+	assert.equal(pathOf(''), '');
+});
+
 test('page image: off unless studio.pageImage asks, and only with page media', (t) => {
 	const base = 'kirigami:\n  root: src\nstudio:\n  include:\n    - path: src/docs/**/_index.md\n';
 	const page = { 'src/docs/a/_index.md': '@title A\n\nText\n' };

@@ -153,9 +153,15 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 	const pageMedia = studio.pageMedia === true ? ['images', 'videos']
 		: Array.isArray(studio.pageMedia) ? studio.pageMedia.filter((name) => typeof name === 'string' && /^[a-z0-9][a-z0-9_-]*$/i.test(name))
 		: [];
+	// Path of `baseurl` ('' for a site on its own domain, '/repo' on user.github.io/repo), for links.
+	let basePath = '';
+	try {
+		basePath = new URL(String(config.kirigami?.baseurl)).pathname.replace(/\/+$/, '');
+	} catch { /* no usable baseurl */ }
 	return {
 		pageTypes,
 		pageMedia,
+		basePath,
 		// Lets the client pick a page's `@image` from its media. Off unless the site asks, and only with page media.
 		pageImage: studio.pageImage === true && pageMedia.length > 0,
 		content: [...content.values()],

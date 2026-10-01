@@ -3,6 +3,7 @@
 // in the main process; nothing here touches the disk.
 import { h } from './dom.js';
 import { t } from './i18n.js';
+import { documentLink } from '../shared/doc-link.js';
 import { maxFileSize } from '../shared/lfs.js';
 
 export const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
@@ -253,12 +254,17 @@ export async function showMedia(ws, media, folderPath = media.root) {
 	}
 
 	const menu = (item, isFolder) => {
-		const code = !isFolder && IMAGE.test(item.name) && imageCode(ws.scope, item.path);
-		const copy = code && h('button.link', { onclick: () => copyCode(copy, code) }, t('media.copyCode'));
+		// An image gives the code that shows it; any other file, the Markdown link to it.
+		const isImage = IMAGE.test(item.name);
+		const code = !isFolder && (isImage ? imageCode(ws.scope, item.path) : documentLink(ws.scope, item.path));
+		const copy = code && h('button.link', { onclick: () => copyCode(copy, code) }, t(isImage ? 'media.copyCode' : 'media.copyLink'));
+		// The link starts at the site's root: for a page-relative one (./file.pdf), copy just the name.
+		const copyName = !isFolder && !isImage && h('button.link', { onclick: () => copyCode(copyName, item.name) }, t('media.copyName'));
 		return h('details.tile-menu',
 			h('summary', { 'aria-label': t('media.actions'), title: t('media.actions') }),
 			h('div.menu',
 				copy,
+				copyName,
 				h('button.link', { onclick: () => rename(item, isFolder) }, t('media.rename')),
 				h('button.link.danger', { onclick: () => remove(item, isFolder) }, t('media.delete'))));
 	};
