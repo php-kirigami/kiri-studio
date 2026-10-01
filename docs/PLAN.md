@@ -39,6 +39,8 @@ rail on the right (» in its header, « on the rail; remembered), leaving the
 width to the editor; smoke scenario `preview-collapse`. `npm run smoke` does
 not rebuild the renderer: run `npm run build` first or it tests the old bundle.
 
+Code blocks and single instance (2026-10-01, **0.5.3, tagged locally, not pushed**): fenced code in the Markdown editor is a full-width tinted block of light monospace with a visible selection (line decoration in `markdown-editor.js`), and a second launch shows a dialog and raises the first window (`requestSingleInstanceLock`; two instances fought over the cache and the `preview` folder).
+
 **Sidebar folding and per-page media** (2026-09-30, **released as 0.5.0**). The sidebar folds by section
 (content groups, collections, media) and by tree page that has sub-pages (`collapse.js`: choices remembered per site in
 localStorage, never required; sections start open, pages with sub-pages closed; selecting or creating a page opens the
