@@ -68,6 +68,7 @@ ipcMain.handle('app:info', () => ({
 	smokePlay: !!process.env.KIRI_STUDIO_SMOKE_PLAY,
 	smokePreview: !!process.env.KIRI_STUDIO_SMOKE_PREVIEW,
 	smokeCollapse: !!process.env.KIRI_STUDIO_SMOKE_COLLAPSE,
+	smokeMenu: !!process.env.KIRI_STUDIO_SMOKE_MENU,
 	smokePageImage: !!process.env.KIRI_STUDIO_SMOKE_PAGE_IMAGE,
 	smokePublish: !!process.env.KIRI_STUDIO_SMOKE_PUBLISH,
 	smokePick: !!process.env.KIRI_STUDIO_SMOKE_PICK, // show the site list even with one site

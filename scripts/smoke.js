@@ -40,6 +40,8 @@ const scenarios = [
 	{ name: 'yaml', screen: 'entry', open: 'src/_data/team.yaml', type: '- name: Grace\n  job: Pastry\n' },
 	{ name: 'images', screen: 'entry', open: 'media:images', add: [path.join(fixture, 'assets', 'images', 'storefront.png')] },
 	{ name: 'viewer', screen: 'entry', open: 'media:images', view: true },
+	// A file's "⋯" menu closes on a click elsewhere; its entries (link, name) show in the screenshot.
+	{ name: 'documents-menu', screen: 'entry', open: 'media:files', menu: true },
 	// The documents folder lists audio and video next to a PDF: the first two get a play mark.
 	{ name: 'documents', screen: 'entry', open: 'media:files',
 		add: ['tone.mp3', 'clip.mp4'].map((name) => path.join(root, 'test', 'fixtures', 'media', name)) },
@@ -115,6 +117,7 @@ for (const scenario of scenarios.filter((s) => !only || s.name === only)) {
 		...(scenario.play && { KIRI_STUDIO_SMOKE_PLAY: '1' }),
 		...(scenario.preview && { KIRI_STUDIO_SMOKE_PREVIEW: '1' }),
 		...(scenario.collapse && { KIRI_STUDIO_SMOKE_COLLAPSE: '1' }),
+		...(scenario.menu && { KIRI_STUDIO_SMOKE_MENU: '1' }),
 		...(scenario.publish && { KIRI_STUDIO_SMOKE_PUBLISH: '1', KIRI_STUDIO_FAKE_PUBLISH: '60' }),
 		...(scenario.pick && { KIRI_STUDIO_SMOKE_PICK: '1' }),
 		...(scenario.update && { KIRI_STUDIO_SMOKE_UPDATE: scenario.update }),

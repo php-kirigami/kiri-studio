@@ -56,7 +56,9 @@ sets/clears the page's `@image` (site-root path, via the header object in `app.j
 **Document links** (2026-09-30, unreleased): in the Documents manager, the "⋯" menu of a file offers "Copy Markdown link"
 (`src/shared/doc-link.js`: `[name](/folder/name.pdf)`, a path from the site root plus the path of `baseurl`, percent-encoded;
 `scope.basePath`) and "Copy file name" (for a page-relative link, since the right relative path depends on the page it
-is pasted in). Checked on humainhumain's five PDFs (each link resolves to the file on disk). Tests: `doc-link`, `scope`.
+is pasted in). An image gets "Copy Markdown image" (`![alt](/path)`, when it sits under the root, like an SVG logo)
+and "Copy path" (its address on the site, or what `{% img-asset %}` takes for an image of `image.source`). Menus (`<details>`
+with a `.menu`: account, "⋯") close on a click elsewhere or Escape (`app.js`; smoke `documents-menu`). Checked on humainhumain's five PDFs (each link resolves to the file on disk). Tests: `doc-link`, `scope`.
 Left for later: optimizing page images/videos at build time (an `encode` plugin), a "used by" count per file.
 
 **Markdown pages, folder and tree collections, page header form** (2026-09-30, **released as 0.4.0**; needs

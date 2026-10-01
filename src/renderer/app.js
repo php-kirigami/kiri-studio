@@ -21,6 +21,16 @@ let ws = null; // the open workspace, see openSite()
 const SYNC_EVERY = 3 * 60_000;         // background check for a new version
 const SYNC_ON_FOCUS_AFTER = 30_000;    // back to the window: check if older than this
 
+// A menu (a <details> holding a .menu: the account, a file's "⋯") closes on a click elsewhere or Escape,
+// so it never stays open over what the client wants to reach.
+const openMenus = () => [...document.querySelectorAll('details[open]')].filter((menu) => menu.querySelector(':scope > .menu'));
+document.addEventListener('pointerdown', (event) => {
+	for (const menu of openMenus()) if (!menu.contains(event.target)) menu.open = false;
+});
+document.addEventListener('keydown', (event) => {
+	if (event.key === 'Escape') for (const menu of openMenus()) menu.open = false;
+});
+
 function show(screen, ...content) {
 	app.dataset.screen = screen;
 	app.replaceChildren(...content);
@@ -432,6 +442,14 @@ async function openSite(user, site, sites) {
 			if (info.smokeView) {
 				ws.smokeView();
 				await new Promise((resolve) => setTimeout(resolve, 600));
+			}
+			if (info.smokeMenu) {
+				// A file's "⋯" menu opens, and a click elsewhere closes it (reported as a renderer error otherwise).
+				const menu = main.querySelector('details.tile-menu');
+				menu.open = true;
+				document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+				if (menu.open) console.error('smoke menu: still open after a click elsewhere');
+				menu.open = true; // left open for the screenshot
 			}
 			if (info.smokePlay) {
 				// A failure is reported as a renderer error, which fails the smoke run.

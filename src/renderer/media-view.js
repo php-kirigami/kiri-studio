@@ -3,7 +3,7 @@
 // in the main process; nothing here touches the disk.
 import { h } from './dom.js';
 import { t } from './i18n.js';
-import { documentLink } from '../shared/doc-link.js';
+import { documentLink, sitePath } from '../shared/doc-link.js';
 import { maxFileSize } from '../shared/lfs.js';
 
 export const IMAGE = /\.(jpe?g|png|webp|gif|svg|avif)$/i;
@@ -254,17 +254,29 @@ export async function showMedia(ws, media, folderPath = media.root) {
 	}
 
 	const menu = (item, isFolder) => {
-		// An image gives the code that shows it; any other file, the Markdown link to it.
+		// What a file can copy for a page: [label key, text] pairs. Links start at the site's root; for a
+		// page-relative link the client copies the name or the path and writes the rest.
 		const isImage = IMAGE.test(item.name);
-		const code = !isFolder && (isImage ? imageCode(ws.scope, item.path) : documentLink(ws.scope, item.path));
-		const copy = code && h('button.link', { onclick: () => copyCode(copy, code) }, t(isImage ? 'media.copyCode' : 'media.copyLink'));
-		// The link starts at the site's root: for a page-relative one (./file.pdf), copy just the name.
-		const copyName = !isFolder && !isImage && h('button.link', { onclick: () => copyCode(copyName, item.name) }, t('media.copyName'));
+		const sourcePrefix = `${ws.scope.imageSource}/`;
+		const copies = isFolder ? [] : isImage
+			? [
+				['media.copyCode', imageCode(ws.scope, item.path)],
+				['media.copyImage', documentLink(ws.scope, item.path, { image: true })],
+				// Under the root: its address on the site; in the image source: what {% img-asset %} takes.
+				['media.copyPath', sitePath(ws.scope, item.path) ?? (item.path.startsWith(sourcePrefix) ? item.path.slice(sourcePrefix.length) : null)],
+			]
+			: [
+				['media.copyLink', documentLink(ws.scope, item.path)],
+				['media.copyName', item.name],
+			];
+		const buttons = copies.filter(([, text]) => text).map(([key, text]) => {
+			const button = h('button.link', { onclick: () => copyCode(button, text) }, t(key));
+			return button;
+		});
 		return h('details.tile-menu',
 			h('summary', { 'aria-label': t('media.actions'), title: t('media.actions') }),
 			h('div.menu',
-				copy,
-				copyName,
+				buttons,
 				h('button.link', { onclick: () => rename(item, isFolder) }, t('media.rename')),
 				h('button.link.danger', { onclick: () => remove(item, isFolder) }, t('media.delete'))));
 	};

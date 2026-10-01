@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { documentLink } from '../src/shared/doc-link.js';
+import { documentLink, sitePath } from '../src/shared/doc-link.js';
 
 const scope = { root: 'src', basePath: '' };
 
@@ -21,4 +21,12 @@ test('document link: keeps the path of baseurl for a site in a sub-folder', () =
 test('document link: brackets in the name are escaped; none outside the root', () => {
 	assert.equal(documentLink(scope, 'src/docs/[draft].pdf'), '[\\[draft\\]](/docs/%5Bdraft%5D.pdf)');
 	assert.equal(documentLink(scope, 'other/a.pdf'), null);
+});
+
+test('image link: ![alt](/path) with the name as alt text; site path for the plain path', () => {
+	assert.equal(documentLink(scope, 'src/images/collaborations/logo-ada_lovelace.svg', { image: true }), '![logo ada lovelace](/images/collaborations/logo-ada_lovelace.svg)');
+	assert.equal(documentLink(scope, 'assets/images/team/ada.png', { image: true }), null);
+	assert.equal(sitePath(scope, 'src/images/a b.svg'), '/images/a b.svg');
+	assert.equal(sitePath({ root: 'src', basePath: '/repo' }, 'src/images/a.svg'), '/repo/images/a.svg');
+	assert.equal(sitePath(scope, 'assets/images/a.png'), null);
 });
