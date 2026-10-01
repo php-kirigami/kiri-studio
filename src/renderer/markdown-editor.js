@@ -2,10 +2,10 @@
 // (headings bigger, bold bold, links colored) and a toolbar, so formatting
 // never requires knowing the syntax. The Markdown source itself is what gets
 // saved, untouched outside the client's edits: no reformatting, clean diffs.
-import { EditorSelection, EditorState } from '@codemirror/state';
-import { EditorView, keymap, drawSelection } from '@codemirror/view';
+import { EditorSelection, EditorState, RangeSetBuilder } from '@codemirror/state';
+import { Decoration, EditorView, ViewPlugin, keymap, drawSelection } from '@codemirror/view';
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
+import { HighlightStyle, syntaxHighlighting, syntaxTree } from '@codemirror/language';
 import { markdown } from '@codemirror/lang-markdown';
 import { tags } from '@lezer/highlight';
 
@@ -23,6 +23,38 @@ const markdownStyle = HighlightStyle.define([
 	// Syntax marks (#, **, list bullets and numbers, >) stay visible but quiet.
 	{ tag: [tags.processingInstruction, tags.contentSeparator], class: 'md-mark' },
 ]);
+
+// Fenced code blocks: one full-width background per line (fence lines included),
+// instead of a patchy background behind each text run.
+const fenceLine = Decoration.line({ class: 'md-fence-line' });
+const fenceLines = ViewPlugin.fromClass(class {
+	constructor(view) { this.decorations = this.build(view); }
+	update(update) {
+		if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) {
+			this.decorations = this.build(update.view);
+		}
+	}
+	build(view) {
+		const builder = new RangeSetBuilder();
+		let last = -1;
+		for (const { from, to } of view.visibleRanges) {
+			syntaxTree(view.state).iterate({
+				from, to,
+				enter: (node) => {
+					if (node.name !== 'FencedCode') return;
+					const end = view.state.doc.lineAt(node.to).number;
+					for (let n = view.state.doc.lineAt(node.from).number; n <= end; n++) {
+						const line = view.state.doc.line(n);
+						if (line.from <= last) continue;
+						builder.add(line.from, line.from, fenceLine);
+						last = line.from;
+					}
+				},
+			});
+		}
+		return builder.finish();
+	}
+}, { decorations: (plugin) => plugin.decorations });
 
 // Wraps each selection in `before`/`after`, or unwraps it when already wrapped.
 function wrap(view, before, after = before) {
@@ -126,6 +158,7 @@ export function createMarkdownEditor(parent, { text, onChange }) {
 				keymap.of([...defaultKeymap, ...historyKeymap]),
 				markdown(),
 				syntaxHighlighting(markdownStyle),
+				fenceLines,
 				EditorView.lineWrapping,
 				EditorView.contentAttributes.of({ spellcheck: 'true', autocorrect: 'on' }),
 				EditorView.updateListener.of((update) => {

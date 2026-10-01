@@ -3,7 +3,7 @@
 // narrow API in src/preload/index.cjs.
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, clipboard, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, shell } from 'electron';
 import { createTokenStore, pollForToken, requestDeviceCode } from './auth.js';
 import { createClient } from './github.js';
 import { INSTALL_URL, listSites } from './sites.js';
@@ -602,7 +602,29 @@ let updateStatus = !fakeUpdate ? null
 ipcMain.handle('update:status', () => updateStatus);
 ipcMain.handle('update:install', () => { if (updateStatus?.state === 'ready') installUpdate(); });
 
-app.whenReady().then(() => {
+// One Studio at a time: two instances fight over the same cache, preview
+// folders and drafts (EPERM, "Unable to create cache"). A second launch tells
+// the person, wakes the first window up and quits. Smoke tests are exempt.
+const firstInstance = process.env.KIRI_STUDIO_SCREENSHOT || app.requestSingleInstanceLock();
+if (!firstInstance) {
+	const fr = app.getLocale().startsWith('fr');
+	dialog.showErrorBox(
+		'Kiri Studio',
+		fr
+			? 'Kiri Studio est déjà ouvert. Utilisez la fenêtre existante (vérifiez aussi le Gestionnaire des tâches si vous ne la voyez pas).'
+			: 'Kiri Studio is already running. Use the existing window (also check the Task Manager if you cannot see it).',
+	);
+	app.quit();
+} else {
+	app.on('second-instance', () => {
+		if (!win) return;
+		if (win.isMinimized()) win.restore();
+		win.show();
+		win.focus();
+	});
+}
+
+if (firstInstance) app.whenReady().then(() => {
 	const { lastVersion } = readPrefs();
 	if (lastVersion && lastVersion !== app.getVersion()) updatedFrom = lastVersion;
 	if (lastVersion !== app.getVersion()) writePrefs({ lastVersion: app.getVersion() });
