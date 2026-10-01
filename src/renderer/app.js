@@ -11,6 +11,7 @@ import { ask, imageCode, pickImage, showMedia } from './media-view.js';
 import { createPreviewPane } from './preview-pane.js';
 import { createPublisher } from './publish.js';
 import { createCollapseStore } from './collapse.js';
+import { createPageFiles } from './page-files.js';
 import { createPageMedia } from './page-media.js';
 
 const { studio } = window;
@@ -723,6 +724,7 @@ async function showEntry(entry) {
 				onChange(current());
 			},
 		}),
+		isMarkdown && createPageFiles(ws, entry, editor),
 		isMarkdown && h('div.toolbar', { role: 'toolbar' },
 			tool('heading', t('editor.heading')),
 			tool('subheading', t('editor.subheading')),

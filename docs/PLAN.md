@@ -53,6 +53,9 @@ same publish path. Tests: `scope` (page media), `collapse`; smoke `page-media`. 
 `studio.pageImage` (off by default, needs `pageMedia` and core 3.2.3; released as 0.5.0): each image tile gets "Use as page image", which
 sets/clears the page's `@image` (site-root path, via the header object in `app.js`; deleting that image clears the tag). Unit test in
 `scope`; smoke `page-image`.
+Downloads (unreleased): with `files` in the `pageMedia` list, `page-files.js` adds a second panel, "Files of this page", for
+`<page>/files/` (add by drop or pick, delete with the usage warning, insert `{% doclink ./files/x.zip x %}`); `page-media.js`
+skips that folder. No core schema change.
 **Document links** (2026-09-30, **released as 0.5.1**): in the Documents manager, the "⋯" menu of a file offers "Copy Markdown link"
 (`src/shared/doc-link.js`: `[name](/folder/name.pdf)`, a path from the site root plus the path of `baseurl`, percent-encoded;
 `scope.basePath`) and "Copy file name" (for a page-relative link, since the right relative path depends on the page it

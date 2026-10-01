@@ -14,7 +14,7 @@ const flat = (node) => [...node.files, ...node.folders.flatMap(flat)];
 // Returns the panel, or null when this entry has none (feature off, or not a page). `pageImage`
 // ({ get, set }, only with `studio.pageImage`) reads and writes the page's `@image` tag.
 export function createPageMedia(ws, entry, editor, pageImage = null) {
-	const names = ws.scope.pageMedia ?? [];
+	const names = (ws.scope.pageMedia ?? []).filter((name) => name !== 'files'); // `files` has its own panel
 	if (!names.length || !/(^|\/)_index\.md$/i.test(entry.path)) return null;
 
 	const dir = entry.path.slice(0, entry.path.lastIndexOf('/'));

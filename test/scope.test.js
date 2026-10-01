@@ -277,3 +277,13 @@ test('page media: off unless studio.pageMedia asks; a list names other folders',
 	assert.equal(mediaRootOf(named, 'src/docs/a/media/x.png'), 'src/docs/a/media');
 	assert.equal(mediaRootOf(named, 'src/docs/a/images/x.png'), null);
 });
+
+test('page files: a files/ folder is a page media folder when pageMedia lists it', (t) => {
+	const base = 'kirigami:\n  root: src\nstudio:\n  include:\n    - path: src/docs/**/_index.md\n';
+	const page = { 'src/docs/a/_index.md': '@title A\n\nText\n' };
+	const scopeOf = (extra) => buildScope(site(t, { 'kirigami.yaml': base + extra, ...page }));
+	assert.equal(mediaRootOf(scopeOf('  pageMedia: true\n'), 'src/docs/a/files/corrige.zip'), null);
+	const on = scopeOf('  pageMedia: [images, videos, files]\n');
+	assert.equal(mediaRootOf(on, 'src/docs/a/files/corrige.zip'), 'src/docs/a/files');
+	assert.equal(mediaRootOf(on, 'src/docs/a/corrige.zip'), null);
+});
