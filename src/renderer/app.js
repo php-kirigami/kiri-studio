@@ -215,6 +215,7 @@ async function openSite(user, site, sites) {
 	stopListening();
 	setStatus(opened.status);
 
+	layout.querySelector('.site-keys').hidden = !opened.scope.secrets;
 	ws = {
 		scope: opened.scope,
 		main,
@@ -552,7 +553,41 @@ function topbar(user, site) {
 		h('button.primary.publish', { disabled: true }, t('ws.publish')),
 		h('details.account',
 			h('summary', avatar(user), h('span', user.name)),
-			h('div.menu', h('button.link', { onclick: signOut }, t('ws.signOut')), version())));
+			h('div.menu',
+				// Shown once the site is open, if it asks for keys (studio.secrets).
+				h('button.link.site-keys', { hidden: true, onclick: showSecrets }, t('keys.menu')),
+				h('button.link', { onclick: signOut }, t('ws.signOut')), version())));
+}
+
+// The keys a site's preview needs (a geocoding key…): typed here once, kept on
+// this computer only. Values are never shown back, only whether each is set.
+async function showSecrets() {
+	document.querySelectorAll('details.account[open]').forEach((menu) => { menu.open = false; });
+	const keys = await studio.secrets.list();
+	const inputs = keys.map((key) => h('input.field', {
+		type: 'password',
+		autocomplete: 'off',
+		placeholder: key.set ? t('keys.set') : t('keys.unset'),
+		'aria-label': key.label,
+	}));
+	const dialog = h('dialog.ask.keys',
+		h('form', { method: 'dialog' },
+			h('h2', t('keys.title')),
+			h('p', t('keys.lead')),
+			...keys.flatMap((key, i) => [h('label', key.label), inputs[i]]),
+			h('div.actions',
+				h('button.primary', { value: 'ok' }, t('common.ok')),
+				h('button.secondary', { value: 'cancel', formnovalidate: true }, t('common.cancel')))));
+	dialog.addEventListener('close', async () => {
+		dialog.remove();
+		if (dialog.returnValue !== 'ok') return;
+		// Only what was typed changes: an empty field keeps the saved key.
+		for (const [i, key] of keys.entries()) {
+			if (inputs[i].value.trim()) await studio.secrets.set(key.name, inputs[i].value);
+		}
+	});
+	document.body.append(dialog);
+	dialog.showModal();
 }
 
 async function showEntry(entry) {

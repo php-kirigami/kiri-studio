@@ -530,6 +530,8 @@ button:focus-visible { outline: 0.125rem solid var(--accent); outline-offset: 0.
 }
 .ask::backdrop { background: rgb(0 0 0 / 0.4); }
 .ask h2 { font-size: 1.0625rem; text-transform: none; letter-spacing: 0; color: var(--ink); margin: 0 0 1rem; }
+.ask.keys p { margin: 0 0 1rem; color: var(--muted); }
+.ask.keys label { display: block; margin: 0.75rem 0 0.25rem; font-weight: 600; }
 .field {
 	width: 100%;
 	font: inherit;

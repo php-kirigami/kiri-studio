@@ -24,13 +24,31 @@ function withoutStudio(text) {
 	return String(doc);
 }
 
-export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus }) {
+// `secretsFile()`: { rel, text } for the keys the client typed in Studio
+// (`studio.secrets`), or null. Written into the preview copy, never published.
+export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus: report, secretsFile = () => null }) {
 	const dir = path.join(siteDir, 'preview');
 	const depsDir = path.join(siteDir, 'deps');
 	const link = path.join(dir, 'node_modules');
 	let applied = new Set();
 	let child = null;
 	let starting = null;
+	let state = 'stopped';
+	const onStatus = (status) => {
+		state = status.state;
+		report(status);
+	};
+
+	// (Re)writes the keys file of the preview copy; removes it when no key is set.
+	function writeSecrets() {
+		if (!fs.existsSync(dir)) return;
+		const secrets = secretsFile();
+		if (!secrets) return;
+		const target = path.join(dir, secrets.rel);
+		if (!secrets.text) return fs.rmSync(target, { force: true });
+		fs.mkdirSync(path.dirname(target), { recursive: true });
+		fs.writeFileSync(target, secrets.text, { mode: 0o600 });
+	}
 
 	// Writes the client's current version of `rel` into the preview copy.
 	function apply(rel) {
@@ -66,6 +84,7 @@ export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus }) 
 		apply('kirigami.yaml');
 		applied = new Set(drafts.list().map((draft) => draft.path));
 		for (const rel of applied) apply(rel);
+		writeSecrets();
 	}
 
 	// Mirrors what changed in the drafts since the last call.
@@ -152,5 +171,11 @@ export function createPreview({ siteDir, treeDir, drafts, cacheDir, onStatus }) 
 		await start().catch(() => {});
 	}
 
-	return { start, stop, resync, refresh, get running() { return !!child; } };
+	return {
+		start, stop, resync, refresh, writeSecrets,
+		dir,
+		get running() { return !!child; },
+		// Running and done building: its generated files are current.
+		get idle() { return !!child && state === 'ready'; },
+	};
 }

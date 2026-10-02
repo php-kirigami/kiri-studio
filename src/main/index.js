@@ -3,7 +3,7 @@
 // narrow API in src/preload/index.cjs.
 import fs from 'node:fs';
 import path from 'node:path';
-import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, shell } from 'electron';
+import { app, BrowserWindow, clipboard, dialog, ipcMain, protocol, safeStorage, shell } from 'electron';
 import { createTokenStore, pollForToken, requestDeviceCode } from './auth.js';
 import { createClient } from './github.js';
 import { INSTALL_URL, listSites } from './sites.js';
@@ -14,8 +14,9 @@ import { createMedia } from './media.js';
 import { createDrafts } from './drafts.js';
 import { checkData } from './validate.js';
 import { createPreview } from './preview.js';
+import { createSecrets } from './secrets.js';
 import { installUpdate, startUpdates } from './updates.js';
-import { publishSite, describeChanges } from './publish.js';
+import { publishSite, describeChanges, takeGenerated } from './publish.js';
 import { watchDeploy } from './deploy.js';
 import { createLfs, createLfsStore, parsePointer } from './lfs.js';
 import { maxFileSize } from '../shared/lfs.js';
@@ -208,12 +209,18 @@ ipcMain.handle('site:open', async (_event, site) => {
 	const drafts = createDrafts(dir, treeDir);
 	if (!site.local) drafts.tidy();
 	current?.preview.stop();
+	const secrets = createSecrets(dir, safeStorage);
 	const preview = createPreview({
 		siteDir: dir,
 		treeDir,
 		drafts,
 		cacheDir: path.join(userData, 'cache', 'npm'),
 		onStatus: (status) => send('preview:status', status),
+		// Read at each rebuild, so a key typed later or a resync's new scope applies.
+		secretsFile: () => {
+			const spec = current?.scope.secrets;
+			return spec ? { rel: spec.file, text: secrets.file(spec)?.text ?? null } : null;
+		},
 	});
 	// Every change to the drafts reaches the preview copy (batched).
 	let pendingRefresh = null;
@@ -229,7 +236,7 @@ ipcMain.handle('site:open', async (_event, site) => {
 	// Git LFS: uploads on publish, and the real bytes of a file shown in the app.
 	const lfs = site.local ? null : createLfs(gh.token, site.fullName);
 	const lfsStore = createLfsStore(path.join(dir, 'lfs'), lfs, site.branch);
-	current = { site, dir, treeDir, drafts, preview, lfs, lfsStore, ...loadScope(treeDir, drafts) };
+	current = { site, dir, treeDir, drafts, preview, secrets, lfs, lfsStore, ...loadScope(treeDir, drafts) };
 	schemas.clear();
 	writePrefs({ lastSite: site.fullName });
 	return {
@@ -349,6 +356,20 @@ ${error.log ?? ''}`);
 
 ipcMain.handle('preview:stop', () => current?.preview.stop());
 
+// --- Site keys (studio.secrets) ----------------------------------------------
+
+// What the site asks for and whether each key is set; never the values.
+ipcMain.handle('secrets:list', () => (current ? current.secrets.list(current.scope.secrets) : []));
+
+// Saves one key (empty: removes it). A running preview gets the new file right
+// away: the next script run uses it.
+ipcMain.handle('secrets:set', (_event, name, value) => {
+	if (typeof name !== 'string' || (value !== null && typeof value !== 'string')) throw new Error('Text expected.');
+	current.secrets.set(current.scope.secrets, name, value ?? '');
+	current.preview.writeSecrets();
+	return current.secrets.list(current.scope.secrets);
+});
+
 // --- Collections -----------------------------------------------------------
 
 ipcMain.handle('collection:files', (_event, pattern) => current.collections.files(pattern));
@@ -377,6 +398,12 @@ async function runPublish() {
 	if (process.env.KIRI_STUDIO_FAKE_PUBLISH) return fakePublish(open, say);
 	if (open.site.local) return { error: 'notAvailable', changes: changes() };
 	try {
+		// What the preview's scripts produced (geocoding cache, fetched logos…)
+		// goes out with the client's changes; without a finished preview, the
+		// site's own build does that work after the publish.
+		if (open.scope.publish.length && open.preview.idle) {
+			takeGenerated({ previewDir: open.preview.dir, patterns: open.scope.publish, drafts: open.drafts });
+		}
 		const result = await publishSite({
 			gh,
 			lfs: { upload: (items, branch) => open.lfs.upload(items, branch), remember: open.lfsStore.remember },

@@ -164,6 +164,27 @@ export async function publishSite({
 	throw new PublishError('busy', 'The site kept changing while publishing.');
 }
 
+// Files the preview's build scripts generated (`studio.publish`: caches,
+// fetched images) become drafts, so the publish sends them along with the
+// client's changes. Only from a preview that is running and done building, so
+// they follow the latest synced copy and drafts; a file identical to the
+// synced one is no change (drafts.save drops it). Returns the paths taken.
+export function takeGenerated({ previewDir, patterns, drafts }) {
+	const taken = [];
+	const glob = /[*?[{]/;
+	for (const pattern of patterns ?? []) {
+		const matches = glob.test(pattern) ? fs.globSync(pattern, { cwd: previewDir }) : [pattern];
+		for (const match of matches) {
+			const rel = match.replaceAll('\\', '/');
+			const file = path.join(previewDir, rel);
+			if (rel.split('/').includes('..') || !fs.existsSync(file) || !fs.statSync(file).isFile()) continue;
+			drafts.save(rel, fs.readFileSync(file));
+			if (drafts.has(rel)) taken.push(rel);
+		}
+	}
+	return taken;
+}
+
 // The commit message: what a maintainer reading the history wants to know.
 // "Update “Team” and 2 images", then the paths.
 export function describeChanges(work, scope) {

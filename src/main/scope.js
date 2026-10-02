@@ -162,6 +162,14 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		pageTypes,
 		pageMedia,
 		basePath,
+		// Keys the preview's build scripts need (a geocoding key…), typed once in
+		// Studio, kept on this computer only, written into the preview copy.
+		secrets: secretsOf(studio.secrets),
+		// Files the preview's scripts generate (caches, fetched images) that a
+		// publish sends along with the client's changes. Paths or globs.
+		publish: (Array.isArray(studio.publish) ? studio.publish : [])
+			.filter((p) => typeof p === 'string' && safeRel(toPosix(p)))
+			.map(toPosix),
 		// Lets the client pick a page's `@image` from its media. Off unless the site asks, and only with page media.
 		pageImage: studio.pageImage === true && pageMedia.length > 0,
 		content: [...content.values()],
@@ -177,6 +185,23 @@ export function buildScope(treeDir, config = readStudioConfig(treeDir)) {
 		imageSource: toPosix(config.image?.source ?? 'assets/images'),
 		imageWidth: Number.isInteger(studio.imageWidth) && studio.imageWidth > 0 ? studio.imageWidth : 800,
 	};
+}
+
+// A project-relative path that stays inside the project.
+function safeRel(rel) {
+	return rel !== '' && !rel.startsWith('/') && !/^[a-z]:/i.test(rel) && !rel.split('/').includes('..');
+}
+
+// `studio.secrets: { file: secrets.local.yaml, keys: { name: label } }` →
+// { file, keys: [{ name, label }] }, or null when the site declares none.
+function secretsOf(value) {
+	if (!value || typeof value !== 'object' || !value.keys || typeof value.keys !== 'object') return null;
+	const file = toPosix(typeof value.file === 'string' ? value.file : 'secrets.local.yaml');
+	if (!safeRel(file)) return null;
+	const keys = Object.entries(value.keys)
+		.filter(([name]) => /^[A-Za-z_][\w-]*$/.test(name))
+		.map(([name, label]) => ({ name, label: typeof label === 'string' && label ? label : humanize(name) }));
+	return keys.length ? { file, keys } : null;
 }
 
 function readOptional(file, missing = '') {

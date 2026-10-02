@@ -39,6 +39,10 @@ contextBridge.exposeInMainWorld('studio', {
 		schema: (path) => ipcRenderer.invoke('data:schema', path),
 		check: (path, text) => ipcRenderer.invoke('data:check', path, text),
 	},
+	secrets: {
+		list: () => ipcRenderer.invoke('secrets:list'),
+		set: (name, value) => ipcRenderer.invoke('secrets:set', name, value),
+	},
 	preview: {
 		start: () => ipcRenderer.invoke('preview:start'),
 		stop: () => ipcRenderer.invoke('preview:stop'),
