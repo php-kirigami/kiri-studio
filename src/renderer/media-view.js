@@ -35,9 +35,15 @@ export async function prepare(file) {
 
 // The Markdown code that shows an image on a page, for images inside
 // `image.source`: {% img-asset team/ada.png 800 %}. Null otherwise.
+// php-mdhtml splits the arguments at whitespace, so a path with a space
+// ("photo (1).jpeg", common for phone photos) is double-quoted, with `"`
+// and `\` escaped the way its tokenizer unescapes them.
 export function imageCode(scope, rel) {
 	const prefix = `${scope.imageSource}/`;
-	return rel.startsWith(prefix) ? `{% img-asset ${rel.slice(prefix.length)} ${scope.imageWidth} %}` : null;
+	if (!rel.startsWith(prefix)) return null;
+	const path = rel.slice(prefix.length);
+	const arg = /[\s"'\\]/.test(path) ? `"${path.replace(/["\\]/g, '\\$&')}"` : path;
+	return `{% img-asset ${arg} ${scope.imageWidth} %}`;
 }
 
 export const formatSize = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`);

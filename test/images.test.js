@@ -13,6 +13,12 @@ test('imageCode: {% img-asset %} with the path relative to image.source', () => 
 	assert.equal(imageCode(scope, 'assets/images-old/x.png'), null);
 });
 
+test('imageCode: a path with spaces or quotes is quoted, so it stays one argument', () => {
+	assert.equal(imageCode(scope, 'assets/images/galeries/photo (1).jpeg'), '{% img-asset "galeries/photo (1).jpeg" 800 %}');
+	assert.equal(imageCode(scope, 'assets/images/l\'été "2026".jpg'), '{% img-asset "l\'été \\"2026\\".jpg" 800 %}');
+	assert.equal(imageCode(scope, 'assets/images/IMG_2738.JPG'), '{% img-asset IMG_2738.JPG 800 %}');
+});
+
 // Inserts at "|" and returns the text with "|" where the cursor lands.
 function insert(text, block) {
 	const at = text.indexOf('|');
